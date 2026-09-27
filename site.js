@@ -1,10 +1,28 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const iconPaths={
+  '↗':'<path d="M7 17 17 7M9 7h8v8"/>','↑':'<path d="M12 19V5M6.5 10.5 12 5l5.5 5.5"/>','↓':'<path d="M12 5v14M6.5 13.5 12 19l5.5-5.5"/>',
+  '←':'<path d="M19 12H5M10.5 6.5 5 12l5.5 5.5"/>','→':'<path d="M5 12h14M13.5 6.5 19 12l-5.5 5.5"/>','×':'<path d="m7 7 10 10M17 7 7 17"/>'
+};
+function replaceGlyphIcons(root=document.body){
+  if(!root)return;const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[];
+  while(walker.nextNode())if(/[↗↑↓←→×]/.test(walker.currentNode.nodeValue))nodes.push(walker.currentNode);
+  for(const node of nodes){const fragment=document.createDocumentFragment();for(const part of node.nodeValue.split(/([↗↑↓←→×])/)){if(!part)continue;if(iconPaths[part]){const holder=document.createElement('span');holder.innerHTML=`<svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${iconPaths[part]}</svg>`;fragment.append(holder.firstChild)}else fragment.append(document.createTextNode(part))}node.replaceWith(fragment)}
+}
+replaceGlyphIcons();
+new MutationObserver(records=>{for(const record of records)for(const node of record.addedNodes)if(node.nodeType===1||node.nodeType===3)replaceGlyphIcons(node)}).observe(document.body,{childList:true,subtree:true});
+
+const scrollLocks=new Set();let lockedScroll=0;
+function setScrollLock(open,key){if(open){if(!scrollLocks.size){lockedScroll=scrollY;document.body.style.setProperty('--locked-top',(-lockedScroll)+'px')}scrollLocks.add(key)}else scrollLocks.delete(key);document.body.classList.toggle('scroll-locked',scrollLocks.size>0);if(!scrollLocks.size)scrollTo(0,lockedScroll)}
+window.jhtScrollLock=setScrollLock;
 const menu=$('menu-toggle'),mobile=$('mobile-nav');
-function closeMenu(){if(!menu||!mobile)return;mobile.hidden=true;menu.setAttribute('aria-expanded','false');menu.setAttribute('aria-label','Open navigation')}
-if(menu&&mobile){menu.addEventListener('click',()=>{const open=mobile.hidden;mobile.hidden=!open;menu.setAttribute('aria-expanded',String(open));menu.setAttribute('aria-label',open?'Close navigation':'Open navigation')});mobile.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMenu));addEventListener('keydown',e=>{if(e.key==='Escape'&&!mobile.hidden)closeMenu()})}
-let scrollTick=false;addEventListener('scroll',()=>{if(scrollTick)return;scrollTick=true;requestAnimationFrame(()=>{if($('header'))$('header').classList.toggle('scrolled',scrollY>70);scrollTick=false})},{passive:true});
+function closeMenu(){if(!menu||!mobile)return;mobile.hidden=true;setScrollLock(false,'menu');menu.setAttribute('aria-expanded','false');menu.setAttribute('aria-label','Open navigation')}
+if(menu&&mobile){menu.addEventListener('click',()=>{const open=mobile.hidden;mobile.hidden=!open;setScrollLock(open,'menu');menu.setAttribute('aria-expanded',String(open));menu.setAttribute('aria-label',open?'Close navigation':'Open navigation')});mobile.querySelectorAll('a').forEach(a=>a.addEventListener('click',closeMenu));addEventListener('keydown',e=>{if(e.key==='Escape'&&!mobile.hidden)closeMenu()})}
+const scrollOrbit=document.createElement('div');scrollOrbit.className='scroll-orbit';scrollOrbit.setAttribute('aria-hidden','true');scrollOrbit.innerHTML='<span></span>';document.body.append(scrollOrbit);
+function updateScrollOrbit(){const max=Math.max(1,document.documentElement.scrollHeight-innerHeight),progress=Math.min(1,Math.max(0,scrollY/max)),track=Math.max(0,scrollOrbit.clientHeight-14);scrollOrbit.firstElementChild.style.transform='translateY('+(progress*track)+'px)'}
+let scrollTick=false;addEventListener('scroll',()=>{if(scrollTick)return;scrollTick=true;requestAnimationFrame(()=>{if($('header'))$('header').classList.toggle('scrolled',scrollY>70);updateScrollOrbit();scrollTick=false})},{passive:true});
+addEventListener('resize',updateScrollOrbit,{passive:true});updateScrollOrbit();
 
 const themeButton=document.querySelector('.theme-toggle');
 function setTheme(theme,save=false){document.documentElement.dataset.theme=theme;themeButton?.setAttribute('aria-label',theme==='dark'?'Switch to light mode':'Switch to dark mode');if(themeButton)themeButton.querySelector('.theme-label').textContent=theme==='dark'?'Light':'Dark';if(save)try{localStorage.setItem('jht-theme',theme)}catch(e){}}
