@@ -334,3 +334,5 @@ body.scroll-locked{position:fixed;inset:var(--locked-top) 0 auto;width:100%;over
 }
 @media(max-width:899px),(pointer:coarse){.scroll-orbit{display:none}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.scroll-orbit>span{will-change:auto}a>.ui-icon,button>.ui-icon{transition:none}}
+/* Extra top contrast over the hero video for the transparent header. */
+.hero-editorial .hero-shade:after{content:'';position:absolute;inset:0 0 45%;background:linear-gradient(180deg,rgba(0,0,0,.30) 0%,rgba(0,0,0,.14) 58%,transparent 100%);pointer-events:none}
