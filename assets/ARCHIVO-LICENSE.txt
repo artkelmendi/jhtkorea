@@ -1,0 +1,7 @@
+Archivo Expanded Black
+Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
+
+This font is licensed under the SIL Open Font License, Version 1.1.
+License text and FAQ: https://openfontlicense.org/open-font-license-official-text/
+
+The font is used for JHT Korea's hero wordmark and loading intro.
