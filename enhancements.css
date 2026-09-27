@@ -339,3 +339,24 @@ body.scroll-locked{position:fixed;inset:var(--locked-top) 0 auto;width:100%;over
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.scroll-orbit>span{will-change:auto}a>.ui-icon,button>.ui-icon{transition:none}}
 /* Extra top contrast over the hero video for the transparent header. */
 .hero-editorial .hero-shade:after{content:'';position:absolute;inset:0 0 45%;background:linear-gradient(180deg,rgba(0,0,0,.30) 0%,rgba(0,0,0,.14) 58%,transparent 100%);pointer-events:none}
+
+/* Vehicle galleries stay visible even if an observer is delayed or unavailable. */
+.vehicle-page .vehicle-gallery,
+.motion-enabled .vehicle-page .vehicle-gallery,
+.motion-enabled .vehicle-page .vehicle-gallery[data-reveal],
+.motion-enabled .vehicle-page .vehicle-gallery.motion-piece:not(.motion-in){clip-path:none!important;opacity:1!important}
+.motion-enabled .vehicle-page .gallery-main{animation:vehicle-gallery-in .85s cubic-bezier(.16,1,.3,1) both}
+@keyframes vehicle-gallery-in{from{opacity:.45;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+.gallery-thumbnails{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));overflow:visible}
+.gallery-thumb{width:100%;height:auto;aspect-ratio:4/3;min-width:0}
+
+/* Crisp blue desktop scrollbar. */
+@media(min-width:900px){
+  html{scrollbar-width:thin;scrollbar-color:#65cbf5 #17181a!important}
+  html::-webkit-scrollbar{width:12px;height:12px}
+  html::-webkit-scrollbar-track{background:#17181a}
+  html::-webkit-scrollbar-thumb{background:#65cbf5;border:3px solid #17181a;border-radius:999px}
+  html::-webkit-scrollbar-thumb:hover{background:#8dddfb}
+  html::-webkit-scrollbar-corner{background:#17181a}
+}
+@media(prefers-reduced-motion:reduce){.motion-enabled .vehicle-page .gallery-main{animation:none}}
