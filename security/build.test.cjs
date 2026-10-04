@@ -11,11 +11,13 @@ test('production build isolates secrets, keeps Pages closed and supplies the rea
   const root=await mkdtemp(join(tmpdir(),'jht-build-security-'));
   for(const dir of ['security','public-site/admin','public-site/.github','private-ui/admin','backend','public-site/cars/hidden-car'])await mkdir(join(root,dir),{recursive:true});
   const boot="window.theme='dark';";
-  await writeFile(join(root,'public-site/index.html'),`<head><script>${boot}</script></head><a href="/jhtkorea/cars/">Cars</a><div id="latest-carousel"><article class="car-card"><div>STALE_INVENTORY_CANARY</div></article></div><footer>Footer stays</footer>`);
+  await writeFile(join(root,'public-site/index.html'),`<head><script>${boot}</script></head><a href="/jhtkorea/cars/">Cars</a><div id="latest-carousel"><article class="car-card"><div>STALE_INVENTORY_CANARY</div></article></div><section id="about">Story stays</section><footer>Footer stays</footer>`);
   await writeFile(join(root,'public-site/cars/hidden-car/index.html'),'STALE_DETAIL_CANARY');
   await writeFile(join(root,'public-site/cars.json'),'STALE_INVENTORY_CANARY');
   await writeFile(join(root,'public-site/catalogue.js'),"fetch('/jhtkorea/cars.json',{cache:'no-store'});");
   await writeFile(join(root,'private-ui/live-home.js'),'LIVE_COLLECTION_LOADER');
+  await writeFile(join(root,'private-ui/live-content.css'),'FEATURE_SECTION_STYLE');
+  await writeFile(join(root,'private-ui/admin-shortcut.js'),'SESSION_GATED_SHORTCUT');
   await writeFile(join(root,'public-site/admin/index.html'),'Management access is closed.');
   await writeFile(join(root,'public-site/.github/workflow.yml'),'PRIVATE_WORKFLOW');
   await writeFile(join(root,'backend/private.mjs'),'SECRET_CANARY');
@@ -25,6 +27,8 @@ test('production build isolates secrets, keeps Pages closed and supplies the rea
   await copyFile(join(__dirname,'build-netlify.mjs'),join(root,'security/build-netlify.mjs'));
   await promisify(execFile)(process.execPath,[join(root,'security/build-netlify.mjs')]);
   const output=join(root,'netlify-public');
+  assert.match(await readFile(join(output,'index.html'),'utf8'),/id="featured-vehicle-section"/);
+  assert.match(await readFile(join(output,'index.html'),'utf8'),/Story stays/);
   const entries=await readdir(output);
   for(const forbidden of ['backend','.env','.github','private-ui','security'])assert.equal(entries.includes(forbidden),false);
   assert.match(await readFile(join(output,'index.html'),'utf8'),/href="\/cars\/"/);

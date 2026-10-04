@@ -190,6 +190,25 @@
     if (field) field.value = value ?? '';
   }
 
+
+  function brandOptions(selected='') {
+    const choices=window.JHTVehicleOptions.brands(state.vehicles);
+    const brand=window.JHTVehicleOptions.canonical(selected,choices);
+    $('#car-brand-choice').innerHTML='<option value="">Choose a brand</option>'+choices.map(b=>'<option>'+escapeHTML(b)+'</option>').join('')+'<option value="__new__">＋ Add another brand</option>';
+    $('#car-brand-choice').value=choices.includes(brand)?brand:brand?'__new__':'';
+    $('#car-brand').value=brand;$('#car-brand').hidden=$('#car-brand-choice').value!=='__new__';$('#car-brand').required=!$('#car-brand').hidden;
+    modelOptions();
+  }
+  function modelOptions(selected='') {
+    const brand=$('#car-brand').value.trim(),choices=window.JHTVehicleOptions.models(state.vehicles,brand);
+    const model=window.JHTVehicleOptions.canonical(selected,choices),select=$('#car-model-choice');
+    select.disabled=!brand;
+    select.innerHTML='<option value="">'+(brand?'Choose a model / version':'Choose a brand first')+'</option>'+choices.map(m=>'<option>'+escapeHTML(m)+'</option>').join('')+'<option value="__new__">＋ Add a model / version</option>';
+    select.value=choices.includes(model)?model:model?'__new__':'';
+    $('#car-model').value=model;$('#car-model').hidden=select.value!=='__new__';$('#car-model').required=!$('#car-model').hidden;
+    $('#model-help').textContent=!brand?'Choose the brand first.':choices.length?'Reuse an existing model or add a new version.':'No saved models yet. Add the first model for this brand.';
+  }
+
   function openEditor(vehicle = null) {
     if(state.busy)return;
     state.editingId = vehicle?.id || null;
@@ -209,12 +228,13 @@
       $('#editor-mode').textContent = 'New inventory record';
       $('#editor-title').textContent = 'Add vehicle';
     }
+    brandOptions(vehicle?.brand||'');modelOptions(vehicle?.model||'');
     state.editorTrigger=document.activeElement;$('.admin-shell').inert=true;
     $('#vehicle-editor').inert=false;$('#vehicle-editor').classList.add('is-open');
     $('#vehicle-editor').setAttribute('aria-hidden', 'false');
     $('#editor-backdrop').hidden = false;
     document.body.classList.add('editor-open');
-    setTimeout(() => $('#car-brand').focus(), 120);
+    setTimeout(() => $('#car-brand-choice').focus(), 120);
   }
 
   function closeEditor(force=false) {
@@ -260,6 +280,8 @@
     }
     const entries = new FormData(form);
     const data = Object.fromEntries(['brand', 'model', 'year', 'ref', 'body', 'status', 'price', 'fuel', 'transmission', 'seats', 'mileage'].map(key => [key, entries.get(key)]));
+    data.brand=window.JHTVehicleOptions.canonical(data.brand,window.JHTVehicleOptions.brands(state.vehicles));
+    data.model=window.JHTVehicleOptions.canonical(data.model,window.JHTVehicleOptions.models(state.vehicles,data.brand));
     const previous = state.vehicles.find(vehicle => String(vehicle.id) === String(state.editingId));
     const refSlug = slugify(data.ref);
     return {
@@ -311,6 +333,9 @@
     $('#sidebar-scrim').addEventListener('click', closeSidebar);
     $('#editor-close').addEventListener('click', closeEditor);
     $('#editor-backdrop').addEventListener('click', closeEditor);
+    $('#car-brand-choice').addEventListener('change',()=>{const add=$('#car-brand-choice').value==='__new__';$('#car-brand').hidden=!add;$('#car-brand').required=add;$('#car-brand').value=add?'':$('#car-brand-choice').value;modelOptions();if(add)$('#car-brand').focus();});
+    $('#car-brand').addEventListener('input',()=>modelOptions());
+    $('#car-model-choice').addEventListener('change',()=>{const add=$('#car-model-choice').value==='__new__';$('#car-model').hidden=!add;$('#car-model').required=add;$('#car-model').value=add?'':$('#car-model-choice').value;if(add)$('#car-model').focus();});
     $('#vehicle-form').addEventListener('submit', event => { event.preventDefault(); saveVehicle(); });
     $('#save-draft').addEventListener('click', () => saveVehicle('draft'));
     $('#car-photos').addEventListener('change', event => previewPhotos(event.target.files));

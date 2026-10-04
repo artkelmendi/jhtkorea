@@ -1,0 +1,7 @@
+(() => {
+'use strict';
+const brands=["Abarth","Acura","Alfa Romeo","Alpine","Aston Martin","Audi","Bentley","BMW","Bugatti","Buick","BYD","Cadillac","Changan","Chery","Chevrolet","Chrysler","Citroën","Cupra","Dacia","Daewoo","Daihatsu","Dodge","DS Automobiles","Ferrari","Fiat","Ford","GAC","Geely","Genesis","GMC","Great Wall","Honda","Hongqi","Hyundai","Infiniti","Isuzu","Iveco","Jaguar","Jeep","KGM","Kia","Lamborghini","Lancia","Land Rover","Lexus","Lincoln","Lotus","Lucid","Mahindra","Maserati","Mazda","McLaren","Mercedes-Benz","MG","MINI","Mitsubishi","NIO","Nissan","Opel","Peugeot","Polestar","Pontiac","Porsche","Proton","Ram","Renault","Rivian","Rolls-Royce","Saab","SEAT","Škoda","Smart","SsangYong","Subaru","Suzuki","Tata","Tesla","Toyota","Vauxhall","Volkswagen","Volvo","XPeng"];
+const key=value=>String(value||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('en');
+const unique=values=>{const seen=new Map();for(const value of values){const label=String(value||'').trim().replace(/\s+/g,' ');if(label&&!seen.has(key(label)))seen.set(key(label),label);}return [...seen.values()].sort((a,b)=>a.localeCompare(b));};
+window.JHTVehicleOptions={brands:cars=>unique([...brands,...cars.map(c=>c.brand)]),models:(cars,brand)=>brand?unique(cars.filter(c=>key(c.brand)===key(brand)).map(c=>c.model)):[],canonical:(value,choices)=>choices.find(c=>key(c)===key(value))||String(value||'').trim().replace(/\s+/g,' '),key};
+})();

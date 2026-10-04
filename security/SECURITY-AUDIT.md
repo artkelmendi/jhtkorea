@@ -10,10 +10,12 @@ This is a targeted code/configuration review with automated and live checks, not
 
 ## Delivered management
 
+Brand/model selectors reuse existing inventory values and support new versions and custom brands. Public model options belong only to the selected brand’s visible inventory. An enabled MFA-verified session reveals a Dashboard shortcut. The featured vehicle has its own section immediately before Our Story; selecting it never changes the video hero.
+
 - Create and update vehicles, specifications, USD prices and galleries; reorder photos and select a cover.
 - Available/reserved listings are public; sold, draft, archived and deleted detail URLs return HTTP 404. Existing downloaded images or older static demo copies cannot be recalled.
 - Archive or permanently delete a record with confirmation and version checks. Concurrent stale changes are rejected rather than silently overwritten.
-- Set an available featured vehicle, its price/label presentation, and automatic or manually ordered latest arrivals on the homepage. These changes require no redeploy and appear when customers load or refresh the page.
+- Set an available featured vehicle, its price/label presentation, and automatic or manually ordered latest arrivals on the homepage. The video hero remains unchanged. These changes require no redeploy and appear when customers load or refresh the page.
 - Create, edit, publish, unpublish and delete plain-text notices, with live list/detail routes.
 - A short welcome animation after authorised sign-in; reduced-motion preferences respected.
 
@@ -43,7 +45,7 @@ Secrets are hidden and set only for production. The free Netlify plan also makes
 
 ## Verification evidence
 
-- 22 automated tests pass, including real PostgreSQL role grants, session/rate limits, CRUD, stale versions, homepage references, notice escaping, hidden-status routes and media access.
+- 24 automated tests pass, including real PostgreSQL role grants, session/rate limits, CRUD, stale versions, homepage references, notice escaping, hidden-status routes and media access.
 - Image pipeline tests reject spoofed/executable input and excessive pixels and confirm original metadata removal. Production dependency audit reported zero known vulnerabilities at review time.
 - Isolated browser tests verified gallery ordering/price saves, featured/manual-arrival saves and rendering, and notice saves. These used a local fixture, not a real provider identity.
 - Netlify published the live integration and template-bundling fix. Live catalogue returns 14 cars; every one of the 14 detail URLs returns HTTP 200 and all five expected photos. Browser gallery navigation and image loading passed. Notices list/detail return 200; unknown car returns 404.
@@ -75,3 +77,7 @@ A publicly reachable login screen and public API URLs are normal. Security comes
 - [Supabase MFA](https://supabase.com/docs/guides/auth/auth-mfa)
 - [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)
 - [Netlify headers](https://docs.netlify.com/manage/routing/headers/)
+
+## Prepared, not enabled
+
+Optional eight-hour trusted-device sessions are implemented and tested in the local source but are not deployed or enabled. The separate live permission confirmation remains pending. Production retains its 15-minute idle and one-hour maximum sessions.

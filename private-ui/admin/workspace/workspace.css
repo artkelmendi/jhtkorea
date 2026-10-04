@@ -139,3 +139,5 @@ body.editor-open{overflow:hidden}
 
 .admin-shell{min-height:100svh}
 @media(max-width:800px){.field input,.field select,.global-search input,.inventory-search input,.notice-editor textarea{font-size:16px}.vehicle-editor{max-height:100svh}}
+
+.field>label{font-size:12px;font-weight:700}.field>small{font-size:11px;line-height:1.5;color:var(--muted)}
