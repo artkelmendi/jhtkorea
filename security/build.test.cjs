@@ -1,0 +1,33 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {mkdtemp,mkdir,writeFile,readFile,copyFile,readdir}=require('node:fs/promises');
+const {join}=require('node:path');
+const {tmpdir}=require('node:os');
+const {execFile}=require('node:child_process');
+const {promisify}=require('node:util');
+const {createHash}=require('node:crypto');
+
+test('production build isolates secrets, keeps Pages closed and supplies the real same-origin sign-in only on Netlify',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'jht-build-security-'));
+  for(const dir of ['security','public-site/admin','public-site/.github','private-ui/admin','backend'])await mkdir(join(root,dir),{recursive:true});
+  const boot="window.theme='dark';";
+  await writeFile(join(root,'public-site/index.html'),`<script>${boot}</script><a href="/jhtkorea/cars/">Cars</a>`);
+  await writeFile(join(root,'public-site/admin/index.html'),'Management access is closed.');
+  await writeFile(join(root,'public-site/.github/workflow.yml'),'PRIVATE_WORKFLOW');
+  await writeFile(join(root,'backend/private.mjs'),'SECRET_CANARY');
+  await writeFile(join(root,'.env'),'SECRET_CANARY');
+  await writeFile(join(root,'private-ui/admin/index.html'),'<script src="/admin/access.js"></script>Private sign-in');
+  await writeFile(join(root,'private-ui/admin/access.js'),"fetch('/api/auth/session');");
+  await copyFile(join(__dirname,'build-netlify.mjs'),join(root,'security/build-netlify.mjs'));
+  await promisify(execFile)(process.execPath,[join(root,'security/build-netlify.mjs')]);
+  const output=join(root,'netlify-public');
+  const entries=await readdir(output);
+  for(const forbidden of ['backend','.env','.github','private-ui','security'])assert.equal(entries.includes(forbidden),false);
+  assert.match(await readFile(join(output,'index.html'),'utf8'),/href="\/cars\/"/);
+  assert.match(await readFile(join(output,'admin/index.html'),'utf8'),/Private sign-in/);
+  assert.match(await readFile(join(root,'public-site/admin/index.html'),'utf8'),/access is closed/);
+  const headers=await readFile(join(output,'_headers'),'utf8');
+  assert.ok(headers.includes(createHash('sha256').update(boot).digest('base64')));
+  assert.match(headers,/frame-ancestors 'none'/);
+  assert.doesNotMatch(headers,/unsafe-eval|script-src[^;]*unsafe-inline/);
+});

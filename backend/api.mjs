@@ -68,6 +68,28 @@ export async function handle(request, context = {}, dependencies = {}) {
     }
     const reply = body => response(body,200,cookie?{'Set-Cookie':cookie}:{});
 
+    if(path==='/api/auth/activate' && request.method==='POST') {
+      if(!context.ip) throw new HttpError(503);
+      await throttle(service,`invite-ip:${context.ip}`,10);
+      const body=await jsonBody(request);exactKeys(body,['accessToken','refreshToken','password']);
+      if(typeof body.accessToken!=='string' || body.accessToken.length>8192 || typeof body.refreshToken!=='string' || body.refreshToken.length>2048 || typeof body.password!=='string' || body.password.length<16 || body.password.length>1024) throw new HttpError(400,'Use a password of at least 16 characters.');
+      const verified=await auth.auth.getUser(body.accessToken);
+      if(verified.error || !verified.data.user?.invited_at) throw new HttpError(401);
+      const user=verified.data.user;
+      const slot=await rpc(service,'jht_admin_slot',{p_user:user.id});
+      authorize({user,slot,claims:trustedClaims(body.accessToken)},false);
+      if(slot.enabled || !slot.allow_enrollment) throw new HttpError(403);
+      await throttle(service,`invite-user:${user.id}`,3,3600);
+      const current=await auth.auth.setSession({access_token:body.accessToken,refresh_token:body.refreshToken});
+      if(current.error || current.data.user.id!==user.id) throw new HttpError(401);
+      const factors=await auth.auth.mfa.listFactors();
+      if(factors.error || factors.data.totp.some(f=>f.status==='verified')) throw new HttpError(403);
+      const changed=await auth.auth.updateUser({password:body.password});
+      if(changed.error) throw new HttpError(400,'Password setup could not be completed.');
+      await rpc(service,'jht_revoke_user_sessions',{p_user:user.id});
+      await newSession(current.data.session,user.id,true);
+      return reply({mfaRequired:true});
+    }
     if(path==='/api/auth/login' && request.method==='POST') {
       if(!context.ip) throw new HttpError(503); // Do not trust user-supplied X-Forwarded-For.
       const body=await jsonBody(request); exactKeys(body,['email','password']);

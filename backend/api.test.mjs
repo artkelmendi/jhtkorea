@@ -47,3 +47,15 @@ test('forged tokens, AAL1, revoked slots and expired sessions never read invento
     assert.doesNotMatch(await res.text(),/private-refresh|signature|encrypted_tokens/);
   }
 });
+
+test('invitation setup cannot change a password without a confirmed allowlisted bootstrap identity',async()=>{
+  const userId='11111111-1111-4111-8111-111111111111';
+  const token='header.'+Buffer.from(JSON.stringify({sub:userId,aal:'aal1'})).toString('base64url')+'.signature';
+  for(const scenario of ['invalid-token','not-allowlisted','already-active']) {
+    let passwordChanged=false;
+    const createClient=(_url,key)=>key==='server'?{async rpc(name){return {data:name==='jht_rate_limit'?true:scenario==='not-allowlisted'?null:{slot:1,user_id:userId,enabled:true,allow_enrollment:false}};}}:{auth:{async getUser(){return {error:scenario==='invalid-token'?new Error('invalid'):null,data:{user:{id:userId,invited_at:'invited',email_confirmed_at:'confirmed'}}};},async updateUser(){passwordChanged=true;}}};
+    const request=new Request('https://jht.example/api/auth/activate',{method:'POST',headers:{Origin:env.APP_ORIGIN,'Content-Type':'application/json'},body:JSON.stringify({accessToken:token,refreshToken:'private',password:'a long unique passphrase'})});
+    assert.equal((await handle(request,{ip:'trusted-ip'},{env,createClient})).status,scenario==='invalid-token'?401:403);
+    assert.equal(passwordChanged,false);
+  }
+});

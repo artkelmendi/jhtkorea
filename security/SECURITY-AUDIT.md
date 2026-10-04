@@ -4,7 +4,7 @@
 
 The original admin was a local design prototype, not a secured production admin. Its fake sign-in accepted any filled credentials, and its edits lived in browser storage. It could not change the shared public inventory. The production bundle now closes that prototype rather than implying that it protects real data.
 
-A real server foundation and private Supabase database have been prepared. Production administration must remain closed until the named administrator is provisioned, MFA is enrolled and independently activated, and the real frontend integration passes the release checks below. A static GitHub Pages deployment cannot run this server.
+A real server foundation and private Supabase database have been prepared, and the protected customer site is deployed on Netlify. The Netlify sign-in supports private invitations and MFA; inventory management remains closed until MFA is enrolled and independently activated and the inventory integration passes the release checks below. GitHub Pages retains the closed management page because it cannot run this server.
 
 No system can guarantee zero attacks or zero risk. This review is a code/configuration review with targeted automated tests, not an independent penetration test or certification.
 
@@ -22,7 +22,7 @@ No system can guarantee zero attacks or zero risk. This review is a code/configu
 | Repository | Public repository; GitHub secret scanning and push protection were enabled. |
 | Database | New free project in Frankfurt; automatic table exposure OFF, automatic RLS ON. Live schema installed and checked: all six application tables have RLS; anonymous and ordinary authenticated roles have no table read/write grants. |
 | Dependency audit | Production dependency audit reported zero known vulnerabilities at review time. This is a point-in-time database check. |
-| Automated verification | Token/role/MFA bypass, CSRF, cookies, tamper detection, malformed data and real PostgreSQL grant/session/rate-limit checks are covered by the repository tests. |
+| Automated verification | Token/role/MFA bypass, invitation abuse, CSRF, cookies, tamper detection, malformed data, build isolation and real PostgreSQL grant/session/rate-limit checks are covered by the repository tests. |
 
 The old PHP site at jhtcar.com, provider employees, devices, recovery email security, hosting-account MFA, DNS registrar and third-party iframe internals were not audited. Current sample vehicle pages remain public static content; changing a prototype status does not revoke an existing static URL or previously downloaded photograph.
 
@@ -44,8 +44,8 @@ The old PHP site at jhtcar.com, provider employees, devices, recovery email secu
 ## Required before opening the real admin
 
 1. Confirm the sole admin email; optionally a second. Provision accounts privately and disable public Supabase signups and unnecessary providers. Do not infer an admin identity from a hosting login. Prefer passkeys/security keys for provider accounts; TOTP is supported by this application foundation.
-2. Put credentials in Netlify **Functions only**, marked secret, for the production context. Pin APP_ORIGIN to the production HTTPS domain. Preview deploys must not share production write credentials. Rotation must invalidate affected app sessions.
-3. Build the real same-origin login/MFA interface and connect the admin to the guarded API. Do not enable the local demo as a shortcut. Keep MFA enrollment/reset owner-controlled; provide a documented, independently verified recovery process with session revocation.
+2. Prefer credentials in Netlify **Functions only**, marked secret, for the production context. The current free plan locks specific scopes behind an upgrade. The alternative requires explicit approval for hidden production-only secrets, also readable by production build code. Preview deploys must receive no production secrets. Pin APP_ORIGIN to the production HTTPS domain; rotation must invalidate affected app sessions.
+3. Connect the inventory workspace to the guarded API and complete production integration. The real sign-in/MFA interface is implemented; the local demo must not be enabled as a shortcut. Keep MFA enrollment/reset owner-controlled; provide a documented, independently verified recovery process with session revocation.
 4. Connect public inventory to a safe published projection. Serve only appropriate vehicle fields/statuses. Sold, draft and archived vehicle URLs must return the selected unavailable/404 behavior at the server, with cache invalidation. Public photos are not secret, and already downloaded copies cannot be withdrawn.
 5. Implement uploads through an authenticated server pipeline: JPEG/PNG/WebP only, inspect actual file type, size/pixel/count limits, decode and re-encode, strip metadata, reject SVG/HTML, use random immutable filenames, prohibit executable storage and authorize deletion. Frontend upload checks alone are insufficient. Upload endpoints remain closed in this foundation.
 6. Test the deployed system: anonymous calls, forged/expired token, password without MFA, third account, disabled slot, MFA replay, cross-site requests, malformed/oversized bodies, stale versions, provider outage, cookie flags, headers, upload abuses and hidden-status URLs. Verify that no token or password appears in network responses, logs or artifacts.
