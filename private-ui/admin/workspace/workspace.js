@@ -23,12 +23,24 @@
   };
   const slugify = value => String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-  function showToast(message) {
+  function showToast(message, kind = 'success') {
     const toast = $('#admin-toast');
-    toast.textContent = message;
-    toast.classList.add('is-visible');
     clearTimeout(showToast.timer);
-    showToast.timer = setTimeout(() => toast.classList.remove('is-visible'), 3200);
+    toast.replaceChildren();
+    toast.classList.toggle('is-busy', kind === 'busy');
+    toast.classList.toggle('is-error', kind === 'error');
+    if (kind === 'busy') {
+      const spinner = document.createElement('span');
+      spinner.className = 'toast-spinner'; spinner.setAttribute('aria-hidden', 'true'); toast.append(spinner);
+    }
+    const copy = document.createElement('span'); copy.className = 'toast-copy';
+    const label = document.createElement('span'); label.textContent = message; copy.append(label);
+    if (kind === 'busy') {
+      const note = document.createElement('small'); note.textContent = 'Please keep this page open until saving finishes.'; copy.append(note);
+    }
+    toast.append(copy);
+    toast.classList.add('is-visible');
+    if (kind !== 'busy') showToast.timer = setTimeout(() => toast.classList.remove('is-visible'), 4200);
   }
 
   async function api(path,body,method) {
@@ -45,7 +57,32 @@
     state.notices=notices.notices;
     renderAll();renderNotices();
   }
-  async function operate(action){if(state.busy)return;state.busy=true;document.body.classList.add('is-saving');try{await action();}catch(error){showToast(error.message);}finally{state.busy=false;document.body.classList.remove('is-saving');}}
+  async function operate(action, message = 'Saving your changes…') {
+    if (state.busy) return;
+    state.busy = true;
+    document.body.classList.add('is-saving');
+    const forms = $$('form').map(form => [form, form.inert]);
+    const buttons = $$('button').map(button => [button, button.disabled]);
+    const focused = document.activeElement;
+    forms.forEach(([form]) => { form.inert = true; form.setAttribute('aria-busy', 'true'); });
+    buttons.forEach(([button]) => { button.disabled = true; });
+    const toast = $('#admin-toast'), dialog = $('dialog[open]');
+    if (dialog) dialog.append(toast);
+    const labels = {'save-homepage':'Updating your homepage…','confirm-archive':state.deleteMode?'Deleting this vehicle…':'Archiving this vehicle…','workspace-signout':'Signing out…'};
+    const progress = labels[focused?.id] || (focused?.matches('[data-status-id]') ? 'Updating availability…' : message);
+    showToast(progress, 'busy');
+    try { await action(); }
+    catch (error) { showToast(error.message, 'error'); }
+    finally {
+      state.busy = false;
+      document.body.classList.remove('is-saving');
+      forms.forEach(([form, inert]) => { form.inert = inert; form.removeAttribute('aria-busy'); });
+      buttons.forEach(([button, disabled]) => { if (button.isConnected) button.disabled = disabled; });
+      document.body.append(toast);
+      if (toast.classList.contains('is-busy')) toast.classList.remove('is-visible');
+      if (focused?.isConnected && focused.offsetParent !== null && !focused.closest('[inert]')) focused.focus({preventScroll:true});
+    }
+  }
   function statusOptions(current) {
     return ['available', 'reserved', 'sold', 'draft', 'archived']
       .map(status => `<option value="${status}"${status === current ? ' selected' : ''}>${status}</option>`).join('');
@@ -256,7 +293,7 @@
   async function uploadPhotos(){
     for(let i=0;i<state.photos.length;i++){
       const photo=state.photos[i];if(photo.path)continue;
-      showToast(`Uploading photo ${i+1} of ${state.photos.length}…`);
+      showToast(`Uploading photo ${i+1} of ${state.photos.length}…`, 'busy');
       const result=await fetch('/api/admin/uploads',{method:'POST',credentials:'same-origin',headers:{'Content-Type':photo.file.type},body:photo.file});
       const data=await result.json();if(!result.ok)throw Error(data.error||'A photo could not be uploaded.');
       photo.path=data.path;
@@ -303,7 +340,7 @@
     const vehicle=formVehicle(statusOverride);if(!vehicle)return;
     if(!state.photos.length){showToast('Add at least one vehicle photo before saving.');return;}
     await operate(async()=>{
-      await uploadPhotos();vehicle.image=state.photos[0].path;vehicle.gallery=state.photos.map(photo=>photo.path);
+      await uploadPhotos();showToast('Saving vehicle details…', 'busy');vehicle.image=state.photos[0].path;vehicle.gallery=state.photos.map(photo=>photo.path);
       const existing=state.vehicles.find(v=>v.id===state.editingId);
       const result=await api('admin/vehicles'+(existing?'/'+existing.id:''),writable(vehicle),existing?'PUT':'POST');
       if(existing)state.vehicles[state.vehicles.indexOf(existing)]=result.vehicle;else state.vehicles.unshift(result.vehicle);
@@ -318,7 +355,8 @@
     $('#cancel-archive').focus();
   }
 
-  function closeArchiveDialog() {
+  function closeArchiveDialog(force = false) {
+    if (state.busy && !force) return;
     state.archiveId = null;
     $('#confirm-dialog').hidden = true;
     $('.admin-shell').inert=false;state.archiveTrigger?.focus();
@@ -385,7 +423,7 @@
       const vehicle=state.vehicles.find(item=>item.id===state.archiveId);if(!vehicle)return;
       if(state.deleteMode){await api('admin/vehicles/'+vehicle.id,{version:vehicle.version},'DELETE');state.vehicles=state.vehicles.filter(v=>v.id!==vehicle.id);}
       else {const result=await api('admin/vehicles/'+vehicle.id,writable({...vehicle,status:'archived'}),'PUT');state.vehicles[state.vehicles.indexOf(vehicle)]=result.vehicle;}
-      renderAll();closeArchiveDialog();showToast('Removed from the public website.');
+      renderAll();closeArchiveDialog(true);showToast('Removed from the public website.');
     }));
     $('#confirm-dialog').addEventListener('click', event => { if (event.target === $('#confirm-dialog')) closeArchiveDialog(); });
 
@@ -393,6 +431,7 @@
     $('#workspace-signout').addEventListener('click',()=>operate(async()=>{await api('auth/logout',{});location.replace('/admin/');}));
     $('#new-notice').addEventListener('click',()=>openNotice());
     $('#notice-close').addEventListener('click',()=>$('#notice-editor').close());
+    $('#notice-editor').addEventListener('cancel',event=>{if(state.busy)event.preventDefault();});
     $('#notice-form').addEventListener('submit',event=>{event.preventDefault();saveNotice();});
     $('#notice-list').addEventListener('click',event=>{
       const edit=event.target.closest('[data-edit-notice]'),remove=event.target.closest('[data-delete-notice]');
@@ -401,7 +440,7 @@
     });
     $('#theme-button').addEventListener('click', toggleTheme);
     document.addEventListener('keydown', event => {
-      if(state.busy)return;
+      if(state.busy){if(['Escape','Tab'].includes(event.key))event.preventDefault();return;}
       if(event.key==='Tab'&&!$('#confirm-dialog').hidden){const controls=[...$('#confirm-dialog').querySelectorAll('button')],first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
       if (event.key === '/' && !/input|textarea|select/i.test(document.activeElement.tagName)) {
         event.preventDefault();
@@ -460,8 +499,13 @@
       try{applyTheme(localStorage.getItem(THEME_KEY)||'light');}catch{applyTheme('light');}
       wireEvents();$('#vehicle-editor').inert=true;
       $('#today-label').textContent=new Intl.DateTimeFormat('en',{weekday:'long',month:'long',day:'numeric'}).format(new Date());
-      await loadInventory();$('.admin-shell').hidden=false;$('#workspace-status p').innerHTML='<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
-      requestAnimationFrame(()=>{$('#welcome-overlay').classList.add('is-ready');setTimeout(()=>{$('#welcome-overlay').classList.add('is-finished');setTimeout(()=>$('#welcome-overlay').remove(),250);},matchMedia('(prefers-reduced-motion: reduce)').matches?200:850);});
+      await Promise.all([loadInventory(), window.JHTAdminFontsReady]);$('.admin-shell').hidden=false;$('#workspace-status p').innerHTML='<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
+      const welcome = $('#welcome-overlay');
+      welcome.classList.add('is-ready');
+      setTimeout(() => {
+        welcome.classList.add('is-finished');
+        setTimeout(() => welcome.remove(), 220);
+      }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 150 : 450);
       document.addEventListener('keydown',event=>{if(event.key!=='Tab'||!$('#vehicle-editor').classList.contains('is-open'))return;const controls=[...$('#vehicle-editor').querySelectorAll('button,input,select')].filter(el=>!el.disabled&&el.offsetParent!==null),first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}});
       document.addEventListener('visibilitychange',()=>{if(!document.hidden)api('auth/session').catch(()=>{});});
     }catch(error){$('#welcome-overlay').innerHTML='<h1>Workspace unavailable.</h1><p></p><a href="/admin/">Return to sign-in</a>';$('#welcome-overlay p').textContent=error.message;$('#welcome-overlay').classList.add('is-ready');}
