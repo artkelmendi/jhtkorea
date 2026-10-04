@@ -116,7 +116,10 @@ export async function handle(request, context = {}, dependencies = {}) {
       const verified=await identity(false);
       const {data,error}=await auth.auth.mfa.listFactors();
       if(error) throw new HttpError(503);
-      return reply({factors:data.totp.filter(f=>f.status==='verified').map(f=>({id:f.id})),enrollmentAllowed:verified.slot.allow_enrollment && !verified.slot.enabled});
+      const bootstrap=verified.slot.allow_enrollment && !verified.slot.enabled;
+      // SDK `totp` contains VERIFIED factors only; `all` also contains the pending
+      // factor the invited owner has just scanned and still needs to confirm.
+      return reply({factors:data.all.filter(f=>f.factor_type==='totp' && (f.status==='verified' || bootstrap && f.status==='unverified')).map(f=>({id:f.id,pending:f.status!=='verified'})),enrollmentAllowed:bootstrap});
     }
     if(path==='/api/auth/mfa/enroll' && request.method==='POST') {
       const verified=await identity(false);
@@ -134,7 +137,7 @@ export async function handle(request, context = {}, dependencies = {}) {
       const body=await jsonBody(request);exactKeys(body,['factorId','code']);
       if(!uuid.test(body.factorId) || typeof body.code!=='string' || !/^\d{6}$/.test(body.code)) throw new HttpError(400);
       const factors=await auth.auth.mfa.listFactors();
-      if(factors.error || !factors.data.totp.some(f=>f.id===body.factorId)) throw new HttpError(403);
+      if(factors.error || !factors.data.all.some(f=>f.id===body.factorId && f.factor_type==='totp' && (f.status==='verified' || f.status==='unverified' && verified.slot.allow_enrollment && !verified.slot.enabled))) throw new HttpError(403);
       const {data,error}=await auth.auth.mfa.challengeAndVerify({factorId:body.factorId,code:body.code});
       if(error || !data?.access_token || trustedClaims(data.access_token).aal!=='aal2') throw new HttpError(401,'Verification could not be completed.');
       await newSession(data,verified.user.id);

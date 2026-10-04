@@ -19,7 +19,10 @@
   async function mfa() {
     stage($('#mfa-form'),'Verify it’s you.','Enter the six-digit code from your authenticator app.');
     const state=await api('mfa');
-    if(state.factors.length) factorId=state.factors[0].id;
+    if(state.factors.length) {
+      factorId=state.factors[0].id;
+      if(state.factors[0].pending)$('#access-copy').textContent='Use the JHT admin entry already added to your authenticator. Enter its current six-digit code to finish setup.';
+    }
     else if(state.enrollmentAllowed) {
       const enrollment=await api('mfa/enroll',{});factorId=enrollment.factorId;
       const qr=enrollment.qrCode;

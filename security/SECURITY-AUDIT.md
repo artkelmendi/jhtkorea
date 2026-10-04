@@ -21,6 +21,9 @@ No system can guarantee zero attacks or zero risk. This review is a code/configu
 | Original response protections | CSP, frame protection, MIME sniff protection, referrer restrictions and permissions restrictions were missing as HTTP headers. GitHub Pages cannot supply the full custom header configuration. |
 | Repository | Public repository; GitHub secret scanning and push protection were enabled. |
 | Database | New free project in Frankfurt; automatic table exposure OFF, automatic RLS ON. Live schema installed and checked: all six application tables have RLS; anonymous and ordinary authenticated roles have no table read/write grants. |
+| Hosted access | Netlify production is public; previews are private. The sole invited account occupies slot 1 with management disabled. Public registration and anonymous sign-in are OFF; email confirmation is ON. |
+| Server secrets | Hidden secrets saved for production only; preview, branch, runner and local-development values are unset. The free plan also makes production secrets readable by build/runtime code; this limitation was disclosed and approved. |
+| Live negative checks | Anonymous and random-session admin calls returned 401; cross-origin mutation returned 403; one nonexistent-account login returned a generic 401 without a cookie. Backend source, migration, package manifest, environment file and audit-report URLs returned 404. |
 | Dependency audit | Production dependency audit reported zero known vulnerabilities at review time. This is a point-in-time database check. |
 | Automated verification | Token/role/MFA bypass, invitation abuse, CSRF, cookies, tamper detection, malformed data, build isolation and real PostgreSQL grant/session/rate-limit checks are covered by the repository tests. |
 
@@ -40,10 +43,11 @@ The old PHP site at jhtcar.com, provider employees, devices, recovery email secu
 - Management responses prevent caching and framing. Public HTML has a CSP with exact hashes for its boot scripts. Netlify supplies the HTTP protections static GitHub Pages cannot.
 - Audit events omit passwords, tokens, device positions and raw IPs. Current audit events record attempts; successful/failed outcomes and alerting are still a release task.
 - Static publishing is isolated to public-site; backend files, configuration, tests, dependency files and private values must never enter the public artifact.
+- The optional host promotional script/badge is disabled. The real sign-in page loads only its own application script, with no analytics or advertising integrations.
 
 ## Required before opening the real admin
 
-1. Confirm the sole admin email; optionally a second. Provision accounts privately and disable public Supabase signups and unnecessary providers. Do not infer an admin identity from a hosting login. Prefer passkeys/security keys for provider accounts; TOTP is supported by this application foundation.
+1. The sole account was explicitly selected and invited; no second slot is occupied, public signups are disabled and other sign-in providers remain disabled. Complete its password/MFA setup and independently verify the factor before any activation. Prefer passkeys/security keys for provider accounts; TOTP is supported by this application foundation.
 2. Prefer credentials in Netlify **Functions only**, marked secret, for the production context. The current free plan locks specific scopes behind an upgrade. The alternative requires explicit approval for hidden production-only secrets, also readable by production build code. Preview deploys must receive no production secrets. Pin APP_ORIGIN to the production HTTPS domain; rotation must invalidate affected app sessions.
 3. Connect the inventory workspace to the guarded API and complete production integration. The real sign-in/MFA interface is implemented; the local demo must not be enabled as a shortcut. Keep MFA enrollment/reset owner-controlled; provide a documented, independently verified recovery process with session revocation.
 4. Connect public inventory to a safe published projection. Serve only appropriate vehicle fields/statuses. Sold, draft and archived vehicle URLs must return the selected unavailable/404 behavior at the server, with cache invalidation. Public photos are not secret, and already downloaded copies cannot be withdrawn.
@@ -52,6 +56,14 @@ The old PHP site at jhtcar.com, provider employees, devices, recovery email secu
 7. Turn on MFA for GitHub, Netlify, Supabase and the registrar; review recovery access and team membership. Protect the production branch, require review/checks and prevent untrusted pull-request builds from receiving secrets. Restrict deploy access because deploy access can replace the authentication code.
 8. Configure alerts, resource limits and abuse protection, plus an incident procedure and tested database/media backup restoration. Free tier provision is not a backup/SLA guarantee; account limits and pricing can change. Use independent encrypted exports if the chosen plan lacks suitable backups.
 9. Arrange an independent security review before managing valuable inventory or customer information. Keep dependencies updated and rerun security tests for authorization and upload changes.
+
+## Remaining limitations
+
+- Nineteen automated tests pass. The deployed negative tests above pass. A real successful sign-in/MFA path is awaiting the invited person's own setup; no password or authenticator secret has been requested through chat.
+- Vehicle uploads, published database inventory, new dynamic vehicle detail URLs, live sold/archive removal, recovery and complete audit outcomes are not delivered by this security foundation. The customer site still uses static sample content. Their implementation and deployment tests are required before opening management.
+- The provider's direct authentication endpoints also exist. Application rate limits do not replace provider abuse controls; Supabase has its own endpoint limits. Review/tighten those controls and add bot protection as appropriate before release.
+- Hosting-account MFA, branch protection, backups/restoration and alerting have not been fully verified. The app's MFA does not protect a compromised hosting or repository owner account.
+- Free Netlify scope restrictions are broader than Functions only. Production code and the account owner can access server secrets. Preview environments receive none; do not add unreviewed production build integrations.
 
 ## Architecture
 
@@ -70,3 +82,4 @@ The admin UI may be publicly reachable as a sign-in page; that is normal. Actual
 - [Supabase MFA](https://supabase.com/docs/guides/auth/auth-mfa)
 - [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)
 - [Netlify response headers](https://docs.netlify.com/manage/routing/headers/)
+- [Supabase provider rate limits](https://supabase.com/docs/guides/auth/rate-limits)

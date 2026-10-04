@@ -59,3 +59,32 @@ test('invitation setup cannot change a password without a confirmed allowlisted 
     assert.equal(passwordChanged,false);
   }
 });
+
+test('MFA confirms an owned pending TOTP during bootstrap without admitting foreign or disallowed factors',async()=>{
+  const userId='11111111-1111-4111-8111-111111111111',factorId='22222222-2222-4222-8222-222222222222';
+  const tokenFor=aal=>'header.'+Buffer.from(JSON.stringify({sub:userId,aal,exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')+'.signature';
+  const encrypted=seal({access:tokenFor('aal1'),refresh:'private-refresh'},Buffer.from(env.SESSION_ENCRYPTION_KEY,'base64'));
+  for(const scenario of ['owned-pending','foreign','phone','bootstrap-closed','invalid-code']) {
+    let challenged=false;
+    const factor={id:scenario==='foreign'?'33333333-3333-4333-8333-333333333333':factorId,factor_type:scenario==='phone'?'phone':'totp',status:'unverified'};
+    const createClient=(_url,key)=>key==='server'?{async rpc(name){
+      if(name==='jht_session_get')return {data:{user_id:userId,encrypted_tokens:encrypted}};
+      if(name==='jht_admin_slot')return {data:{slot:1,user_id:userId,enabled:false,allow_enrollment:scenario!=='bootstrap-closed'}};
+      return {data:true,error:null};
+    }}:{auth:{
+      async getUser(){return {data:{user:{id:userId,email_confirmed_at:'confirmed'}},error:null};},
+      async setSession(){return {error:null};},
+      mfa:{async listFactors(){return {data:{all:[factor],totp:[]},error:null};},async challengeAndVerify(){challenged=true;return scenario==='invalid-code'?{error:new Error('Invalid code'),data:null}:{data:{access_token:tokenFor('aal2'),refresh_token:'rotated-private-token'},error:null};}}
+    }};
+    const req=new Request('https://jht.example/api/auth/mfa/verify',{method:'POST',headers:{Origin:env.APP_ORIGIN,'Content-Type':'application/json',Cookie:'__Host-jht_session='+newSessionId()},body:JSON.stringify({factorId,code:'123456'})});
+    const res=await handle(req,{},{env,createClient});
+    assert.equal(res.status,scenario==='owned-pending'?200:scenario==='invalid-code'?401:403);
+    assert.equal(challenged,['owned-pending','invalid-code'].includes(scenario));
+    assert.equal(Boolean(res.headers.get('set-cookie')),scenario==='owned-pending');
+    assert.doesNotMatch(await res.text(),/private-token|private-refresh/);
+    if(scenario==='owned-pending') {
+      const listing=await handle(new Request('https://jht.example/api/auth/mfa',{headers:{Cookie:'__Host-jht_session='+newSessionId()}}),{},{env,createClient});
+      assert.deepEqual((await listing.json()).factors,[{id:factorId,pending:true}]);
+    }
+  }
+});
