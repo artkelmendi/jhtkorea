@@ -37,10 +37,10 @@
     $('#mfa-form input').focus();
   }
   function result(enabled) {
-    stage(null,enabled?'Access verified.':'Verification complete.',enabled?'Your identity and two-factor verification are confirmed.':'Your authenticator is ready.');
+    stage(null,enabled?'You’re signed in.':'Two-factor setup complete.',enabled?'Your identity and two-factor verification are confirmed.':'Your authenticator is working. Your identity is verified.');
     $('#mfa-qr').removeAttribute('src');$('#mfa-qr').hidden=true;$('#access-result').hidden=false;
     if(qrUrl){URL.revokeObjectURL(qrUrl);qrUrl='';}
-    $('#result-copy').textContent=enabled?'The inventory workspace is still undergoing its production release checks. Management is closed until those checks are complete.':'The account owner must complete the final access activation. Management remains closed.';
+    $('#result-copy').textContent='Inventory management has not been activated yet. Your password and authenticator setup are complete; you do not need to repeat them.';
   }
   async function submit(form,action) {
     const button=form.querySelector('button');button.disabled=true;$('#access-message').textContent='';
@@ -51,5 +51,5 @@
   $('#mfa-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const verified=await api('mfa/verify',{factorId,code:new FormData($('#mfa-form')).get('code')});$('#mfa-form input').value='';result(verified.accessEnabled);});});
   $('#sign-out').addEventListener('click',async()=>{try{await api('logout',{});location.replace('/admin/');}catch{ $('#access-message').textContent='Sign-out could not be completed. Please try again.';}});
   if(invitation)stage($('#setup-form'),'Make it yours.','Create your private sign-in password, then set up two-factor verification.');
-  else api('session').then(()=>result(true)).catch(()=>{});
+  else api('session').then(state=>state.mfaVerified?result(state.accessEnabled):mfa()).catch(()=>{});
 })();

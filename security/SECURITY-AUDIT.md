@@ -59,7 +59,7 @@ The old PHP site at jhtcar.com, provider employees, devices, recovery email secu
 
 ## Remaining limitations
 
-- Nineteen automated tests pass. The deployed negative tests above pass. A real successful sign-in/MFA path is awaiting the invited person's own setup; no password or authenticator secret has been requested through chat.
+- Twenty automated tests pass. The deployed negative tests above pass. The live provider confirms that the invited account's TOTP factor is verified. A bootstrap bug that excluded unverified factors was fixed and given a regression test. The status screen now distinguishes completed authentication from inventory management that is still closed. No password or authenticator secret has been requested through chat.
 - Vehicle uploads, published database inventory, new dynamic vehicle detail URLs, live sold/archive removal, recovery and complete audit outcomes are not delivered by this security foundation. The customer site still uses static sample content. Their implementation and deployment tests are required before opening management.
 - The provider's direct authentication endpoints also exist. Application rate limits do not replace provider abuse controls; Supabase has its own endpoint limits. Review/tighten those controls and add bot protection as appropriate before release.
 - Hosting-account MFA, branch protection, backups/restoration and alerting have not been fully verified. The app's MFA does not protect a compromised hosting or repository owner account.

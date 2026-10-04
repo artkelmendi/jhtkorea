@@ -109,8 +109,9 @@ export async function handle(request, context = {}, dependencies = {}) {
       return response({signedOut:true},200,{'Set-Cookie':sessionCookie('',0)});
     }
     if(path==='/api/auth/session' && request.method==='GET') {
-      const verified=await identity();
-      return reply({authenticated:true,mfaVerified:verified.claims.aal==='aal2'});
+      // A disabled bootstrap account may see its own verification state, never inventory.
+      const verified=await identity(false);
+      return reply({authenticated:true,mfaVerified:verified.claims.aal==='aal2',accessEnabled:verified.slot.enabled});
     }
     if(path==='/api/auth/mfa' && request.method==='GET') {
       const verified=await identity(false);
