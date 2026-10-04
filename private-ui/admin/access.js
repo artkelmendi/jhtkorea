@@ -37,6 +37,7 @@
     $('#mfa-form input').focus();
   }
   function result(enabled) {
+    if(enabled){location.replace('/admin/workspace/');return;}
     stage(null,enabled?'You’re signed in.':'Two-factor setup complete.',enabled?'Your identity and two-factor verification are confirmed.':'Your authenticator is working. Your identity is verified.');
     $('#mfa-qr').removeAttribute('src');$('#mfa-qr').hidden=true;$('#access-result').hidden=false;
     if(qrUrl){URL.revokeObjectURL(qrUrl);qrUrl='';}

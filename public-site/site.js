@@ -35,7 +35,7 @@ if(intro&&document.documentElement.classList.contains('has-intro')){setTimeout((
 
 const video=$('hero-video'),motion=$('motion-toggle'),hero=document.querySelector('.hero');
 let heroVisible=true;
-function syncVideo(){if(!video)return;if(document.hidden||!heroVisible||document.body.classList.contains('motion-paused'))video.pause();else video.play().catch(()=>{})}
+function syncVideo(){if(!video||video.hidden)return;if(document.hidden||!heroVisible||document.body.classList.contains('motion-paused'))video.pause();else video.play().catch(()=>{})}
 if(motion){motion.textContent='';motion.addEventListener('click',()=>{const paused=document.body.classList.toggle('motion-paused');motion.setAttribute('aria-pressed',String(paused));motion.setAttribute('aria-label',paused?'Play background motion':'Pause background motion');syncVideo()})}
 if(video&&!reduce){video.addEventListener('playing',()=>video.parentElement.classList.add('video-ready'));video.addEventListener('error',()=>video.parentElement.classList.remove('video-ready'));video.src=video.dataset.src;syncVideo();document.addEventListener('visibilitychange',syncVideo);if('IntersectionObserver' in window)new IntersectionObserver(entries=>{heroVisible=entries[0].isIntersecting;syncVideo()},{threshold:.02}).observe(hero)}
 if(hero&&!reduce&&matchMedia('(pointer:fine)').matches){let frame=0;hero.addEventListener('pointermove',e=>{if(frame)return;frame=requestAnimationFrame(()=>{const r=hero.getBoundingClientRect();hero.style.setProperty('--mouse-x',(e.clientX-r.left)+'px');hero.style.setProperty('--mouse-y',(e.clientY-r.top)+'px');hero.classList.add('pointer-active');frame=0})});hero.addEventListener('pointerleave',()=>hero.classList.remove('pointer-active'))}
@@ -43,7 +43,9 @@ if(hero&&!reduce&&matchMedia('(pointer:fine)').matches){let frame=0;hero.addEven
 if(!reduce&&'IntersectionObserver' in window){document.documentElement.classList.add('motion-enabled');const variants=[['.brand-tile','wipe'],['.service-list article','line'],['.map-shell','uncover'],['.location-copy','edge'],['.home-contact .wrap','uncover'],['.catalogue-hero .wrap','edge'],['.vehicle-intro','edge'],['.vehicle-gallery','uncover'],['.vehicle-summary','edge'],['.footer-grid','line']];for(const [selector,type] of variants)document.querySelectorAll(selector).forEach(el=>{if(!el.dataset.reveal)el.dataset.reveal=type});const revealTargets=new Map();const observer=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){for(const item of revealTargets.get(e.target)||[])item.classList.add('is-in');observer.unobserve(e.target)}},{threshold:.04,rootMargin:'0px 0px 5% 0px'});document.querySelectorAll('[data-reveal],.reveal').forEach(el=>{const target=el.parentElement||el;if(!revealTargets.has(target)){revealTargets.set(target,[]);observer.observe(target)}revealTargets.get(target).push(el)})}
 
 const rail=$('latest-carousel');
-if(rail){
+function initCarousel(){
+if(!rail||rail.dataset.livePending==='true'||rail.dataset.initialized==='true')return;
+rail.dataset.initialized='true';
   const originals=[...rail.querySelectorAll('.car-card')];
   for(const card of originals){const clone=card.cloneNode(true);clone.removeAttribute('data-reveal');clone.removeAttribute('style');clone.setAttribute('aria-hidden','true');clone.querySelectorAll('a,button,[tabindex]').forEach(el=>el.tabIndex=-1);rail.append(clone)}
   let dragging=false,startX=0,startScroll=0,moved=false,last=performance.now(),pauseUntil=0;
@@ -62,6 +64,8 @@ if(rail){
   rail.addEventListener('focusin',()=>pauseUntil=performance.now()+4000);
   rail.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();nudge(e.key==='ArrowRight'?1:-1)}});
 }
+
+window.jhtInitCarousel=initCarousel;initCarousel();
 
 if(!reduce&&'IntersectionObserver' in window){
   const motionSelectors=['.brand-heading','.section-heading','.history-layout','.history-signature','.service-list article','.location-copy','.map-shell','.film-copy','.film-frame','.home-contact .wrap','.catalogue-hero .wrap','.vehicle-intro','.vehicle-gallery','.vehicle-summary','.info-hero .wrap','.faq-group','.guide-steps article','.notice-row','.footer-main','.footer-bottom'];

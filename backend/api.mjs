@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { asset, publicVehicle, publishedRows, validateNotice, vehiclePage, unavailablePage, noticesPage, noticePage } from './content.mjs';
+import { readImage, BUCKET } from './images.mjs';
 import { configuration, HttpError, response, requireSameOrigin, jsonBody, exactKeys, authorize, digest, seal, unseal, newSessionId, sessionCookie, sessionId } from './policy.mjs';
 
 const options = { auth: { autoRefreshToken:false, persistSession:false, detectSessionInUrl:false } };
@@ -23,8 +25,6 @@ function validateVehicle(body) {
   if (!Number.isInteger(body.year) || !Number.isInteger(body.seats)) throw new HttpError(400);
   if (body.mileage!==null && (typeof body.mileage!=='number' || !Number.isFinite(body.mileage) || body.mileage<0 || body.mileage>3000000)) throw new HttpError(400);
   if (typeof body.slug!=='string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(body.slug) || body.slug.length>100 || !statuses.includes(body.status)) throw new HttpError(400);
-  // The initial release accepts existing vetted assets only. Raw uploads remain closed.
-  const asset = value => typeof value==='string' && /^assets\/[a-z0-9][a-z0-9._-]*\.(?:webp|jpe?g|png)$/i.test(value);
   if (!asset(body.image) || !Array.isArray(body.gallery) || body.gallery.length>12 || body.gallery.some(value=>!asset(value))) throw new HttpError(400,'Invalid image reference.');
   const payload=Object.fromEntries(fields.filter(field=>!['slug','status','version'].includes(field)).map(field=>[field,body[field]]));
   return {slug:body.slug,status:body.status,payload};
@@ -67,6 +67,39 @@ export async function handle(request, context = {}, dependencies = {}) {
       return {id,user:result.data.user,slot,claims};
     }
     const reply = body => response(body,200,cookie?{'Set-Cookie':cookie}:{});
+    async function validImages(vehicle) {
+      const ids=[...new Set([vehicle.payload.image,...vehicle.payload.gallery].filter(p=>p.startsWith('api/media/')).map(p=>p.slice(10,-5)))];
+      if(ids.length){const {data,error}=await service.from('jht_media').select('id').in('id',ids);if(error)throw new HttpError(503);if(data.length!==ids.length)throw new HttpError(400,'An uploaded photo is missing. Upload it again.');}
+    }
+    // Read-only public projection. No administrative table or provider token is exposed.
+    if(path==='/api/public/catalogue' && request.method==='GET') {
+      const rows=await publishedRows(service);
+      const {data,error}=await service.from('jht_homepage').select('featured_id,show_price,show_label,arrival_order,arrival_ids').eq('singleton',true).single();
+      if(error)throw new HttpError(503);
+      const feature=rows.find(r=>r.id===data.featured_id && r.status==='available');
+      return reply({vehicles:rows.map(publicVehicle),homepage:{...data,featured_id:feature?.id||null,arrival_ids:data.arrival_ids.filter(id=>rows.some(r=>r.id===id && r.status==='available'))}});
+    }
+    if(/^\/cars\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path) && request.method==='GET') {
+      const {data,error}=await service.from('jht_vehicles').select('id,slug,status,payload,created_at').eq('slug',path.split('/').at(-1)).in('status',['available','reserved']).maybeSingle();
+      if(error)throw new HttpError(503);return data?vehiclePage(data):unavailablePage();
+    }
+    if(path==='/notices' && request.method==='GET') {
+      const {data,error}=await service.from('jht_notices').select('slug,title,created_at').eq('status','published').order('created_at',{ascending:false}).limit(100);
+      if(error)throw new HttpError(503);return noticesPage(data);
+    }
+    if(/^\/notices\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path) && request.method==='GET') {
+      const {data,error}=await service.from('jht_notices').select('title,content,created_at').eq('slug',path.split('/').at(-1)).eq('status','published').maybeSingle();
+      if(error)throw new HttpError(503);return data?noticePage(data):unavailablePage();
+    }
+    const media=path.match(/^\/api\/media\/([0-9a-f-]{36})\.webp$/);
+    if(media && request.method==='GET') {
+      if(!uuid.test(media[1]))throw new HttpError(404);
+      const visible=await rpc(service,'jht_media_referenced',{p_id:media[1],p_public:true});
+      if(!visible){try{await identity();}catch{throw new HttpError(404);}}
+      const {data,error}=await service.storage.from(BUCKET).download(media[1]+'.webp');
+      if(error||!data)throw new HttpError(404);
+      return new Response(data,{headers:{'Content-Type':'image/webp','Cache-Control':'no-store','Netlify-CDN-Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Cross-Origin-Resource-Policy':'same-origin'}});
+    }
 
     if(path==='/api/auth/activate' && request.method==='POST') {
       if(!context.ip) throw new HttpError(503);
@@ -149,15 +182,27 @@ export async function handle(request, context = {}, dependencies = {}) {
     // Every management route passes through this server guard, including unknown endpoints.
     const verified=await identity();
     await throttle(service,`admin:${verified.user.id}`,request.method==='GET'?300:60,60);
+    if(path==='/api/admin/uploads' && request.method==='POST') {
+      await throttle(service,`upload:${verified.user.id}`,120,3600);
+      const image=await readImage(request);
+      const {error}=await service.storage.from(BUCKET).upload(image.id+'.webp',image.bytes,{contentType:'image/webp',upsert:false,cacheControl:'0'});
+      if(error)throw new HttpError(503,'Photo storage is temporarily unavailable.');
+      const recorded=await service.from('jht_media').insert({id:image.id,owner_id:verified.user.id});
+      if(recorded.error){await service.storage.from(BUCKET).remove([image.id+'.webp']);throw new HttpError(503);}
+      await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'photo.upload.success',p_record:image.id});
+      return reply({path:'api/media/'+image.id+'.webp'});
+    }
     if(path==='/api/admin/vehicles' && request.method==='GET') {
       const {data,error}=await service.from('jht_vehicles').select('*').order('created_at',{ascending:false}).limit(500);
       if(error) throw new HttpError(503);return reply({vehicles:data.map(rowToVehicle)});
     }
     if(path==='/api/admin/vehicles' && request.method==='POST') {
       const vehicle=validateVehicle(await jsonBody(request));
+      await validImages(vehicle);
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.create.attempt',p_record:vehicle.slug});
       const {data,error}=await service.from('jht_vehicles').insert(vehicle).select().single();
       if(error) throw new HttpError(error.code==='23505'?409:503);
+      await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.create.success',p_record:data.id});
       return reply({vehicle:rowToVehicle(data)});
     }
     const match=path.match(/^\/api\/admin\/vehicles\/([0-9a-f-]+)$/i);
@@ -165,17 +210,30 @@ export async function handle(request, context = {}, dependencies = {}) {
       if(!uuid.test(match[1])) throw new HttpError(400);
       const body=await jsonBody(request),vehicle=validateVehicle(body);
       if(!Number.isInteger(body.version) || body.version<1) throw new HttpError(400);
+      await validImages(vehicle);
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.update.attempt',p_record:match[1]});
       const {data,error}=await service.from('jht_vehicles').update({...vehicle,version:body.version+1}).eq('id',match[1]).eq('version',body.version).select().maybeSingle();
-      if(error) throw new HttpError(503);if(!data) throw new HttpError(409,'The record changed. Reload before saving.');
+      if(error) throw new HttpError(error.code==='23505'?409:503);if(!data) throw new HttpError(409,'The record changed. Reload before saving.');
+      await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.update.success',p_record:data.id});
       return reply({vehicle:rowToVehicle(data)});
     }
+    if(match && request.method==='DELETE') {
+      if(!uuid.test(match[1]))throw new HttpError(400);
+      const body=await jsonBody(request);exactKeys(body,['version']);if(!Number.isInteger(body.version)||body.version<1)throw new HttpError(400);
+      await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.delete.attempt',p_record:match[1]});
+      const {data,error}=await service.from('jht_vehicles').delete().eq('id',match[1]).eq('version',body.version).select('id').maybeSingle();
+      if(error)throw new HttpError(503);if(!data)throw new HttpError(409,'The record changed. Reload before deleting.');
+      await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.delete.success',p_record:data.id});
+      return reply({deleted:true});
+    }
     if(path==='/api/admin/homepage' && request.method==='GET') {
-      const {data,error}=await service.from('jht_homepage').select('featured_id,show_price,show_label,arrival_order').eq('singleton',true).single();
+      const {data,error}=await service.from('jht_homepage').select('featured_id,show_price,show_label,arrival_order,arrival_ids').eq('singleton',true).single();
       if(error) throw new HttpError(503);return reply(data);
     }
     if(path==='/api/admin/homepage' && request.method==='PUT') {
-      const body=await jsonBody(request);exactKeys(body,['featured_id','show_price','show_label','arrival_order']);
+      const body=await jsonBody(request);exactKeys(body,['featured_id','show_price','show_label','arrival_order','arrival_ids']);
+      if(!Array.isArray(body.arrival_ids)||body.arrival_ids.length>10||body.arrival_ids.some(id=>!uuid.test(id))||new Set(body.arrival_ids).size!==body.arrival_ids.length)throw new HttpError(400);
+      if(body.arrival_ids.length){const result=await service.from('jht_vehicles').select('id').in('id',body.arrival_ids).eq('status','available');if(result.error)throw new HttpError(503);if(result.data.length!==body.arrival_ids.length)throw new HttpError(400,'Select available vehicles for recent arrivals.');}
       if(body.featured_id!==null && !uuid.test(body.featured_id) || typeof body.show_price!=='boolean' || typeof body.show_label!=='boolean' || !['automatic','manual'].includes(body.arrival_order)) throw new HttpError(400);
       if(body.featured_id) {
         const feature=await service.from('jht_vehicles').select('id').eq('id',body.featured_id).eq('status','available').maybeSingle();
@@ -185,10 +243,30 @@ export async function handle(request, context = {}, dependencies = {}) {
       const {error}=await service.from('jht_homepage').update(body).eq('singleton',true);
       if(error) throw new HttpError(503);return reply({saved:true});
     }
-    // Uploads, recovery, account creation, role changes and hard deletion are not exposed.
+    if(path==='/api/admin/notices' && request.method==='GET') {
+      const {data,error}=await service.from('jht_notices').select('*').order('created_at',{ascending:false}).limit(100);if(error)throw new HttpError(503);return reply({notices:data});
+    }
+    if(path==='/api/admin/notices' && request.method==='POST') {
+      const body=validateNotice(await jsonBody(request));
+      const {data,error}=await service.from('jht_notices').insert(body).select().single();if(error)throw new HttpError(error.code==='23505'?409:503);
+      await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'notice.create.success',p_record:data.id});return reply({notice:data});
+    }
+    const notice=path.match(/^\/api\/admin\/notices\/([0-9a-f-]{36})$/);
+    if(notice && ['PUT','DELETE'].includes(request.method)) {
+      if(!uuid.test(notice[1]))throw new HttpError(400);
+      const body=await jsonBody(request);if(!Number.isInteger(body.version)||body.version<1)throw new HttpError(400);
+      let operation;
+      if(request.method==='PUT')operation=service.from('jht_notices').update({...validateNotice(body),version:body.version+1});
+      else {exactKeys(body,['version']);operation=service.from('jht_notices').delete();}
+      const {data,error}=await operation.eq('id',notice[1]).eq('version',body.version).select().maybeSingle();
+      if(error)throw new HttpError(error.code==='23505'?409:503);if(!data)throw new HttpError(409,'The notice changed. Reload before saving.');
+      await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:request.method==='PUT'?'notice.update.success':'notice.delete.success',p_record:data.id});return reply({notice:data});
+    }
+    // Recovery, account creation and role changes are not exposed.
     throw new HttpError(404);
   } catch(error) {
     const status=error instanceof HttpError?error.status:503;
+    if(/^\/(cars|notices)(\/|$)/.test(new URL(request.url).pathname))return unavailablePage(status===404?404:503);
     return response({error:error instanceof HttpError?error.message:'Management is temporarily unavailable.'},status,status===429?{'Retry-After':'900'}:{});
   }
 }

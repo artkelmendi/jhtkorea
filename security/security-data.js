@@ -7,7 +7,7 @@
     const n = typeof value === 'number' ? value : Number(value);
     return value !== null && value !== '' && Number.isFinite(n) && n >= min && n <= max ? n : fallback;
   };
-  const assetPath = value => typeof value === 'string' && /^assets\/[a-z0-9][a-z0-9._-]*\.(?:webp|png|jpe?g)$/i.test(value) ? value : 'assets/car-1.webp';
+  const assetPath = value => typeof value === 'string' && (/^assets\/[a-z0-9][a-z0-9._-]*\.(?:webp|png|jpe?g)$/i.test(value) || /^api\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/.test(value)) ? value : 'assets/car-1.webp';
   function vehicle(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     const slug = text(value.slug, 100);

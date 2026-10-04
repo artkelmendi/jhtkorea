@@ -1,4 +1,4 @@
-import { readdir,readFile,writeFile,cp,mkdir,stat } from 'node:fs/promises';
+import { readdir,readFile,writeFile,cp,mkdir,stat,rm } from 'node:fs/promises';
 import { resolve,join,relative } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -25,9 +25,33 @@ await walk(output);
 // The real sign-in flow is served only by the host that runs its guarded API.
 // GitHub Pages retains the closed management page.
 await cp(join(root,'private-ui','admin'),join(output,'admin'),{recursive:true});
+// Replace public sample cards with live content only in the server-backed release.
+let home=await readFile(join(output,'index.html'),'utf8');
+if(home.includes('id="latest-carousel"')) {
+  const start=home.indexOf('<div',home.lastIndexOf('<div',home.indexOf('id="latest-carousel"')));
+  const tagEnd=home.indexOf('>',home.indexOf('id="latest-carousel"'))+1;
+  let depth=1,end=tagEnd;const tags=/<\/?div\b[^>]*>/g;tags.lastIndex=tagEnd;let match;
+  while(depth&&(match=tags.exec(home))){depth+=match[0].startsWith('</')?-1:1;end=tags.lastIndex;}
+  const opening=home.slice(start,tagEnd).replace('id="latest-carousel"','id="latest-carousel" data-live-pending="true"');
+  home=home.slice(0,start)+opening+'<p class="collection-message">Loading the collection…</p></div>'+home.slice(end);
+  home=home.replace('</head>','<script defer src="/security-data.js"></script><script defer src="/live-home.js"></script></head>');
+  home=home.replace('Showing 10 recent vehicles from our sample collection. Availability and final pricing are confirmed with the team.','Recent arrivals from our live collection. Confirm condition and final shipping costs with our team.');
+  await writeFile(join(output,'index.html'),home);
+  await cp(join(root,'private-ui','live-home.js'),join(output,'live-home.js'));
+}
+// There must be no static detail route that can bypass the current database status.
+for(const section of ['cars','notices']){
+  let entries=[];try{entries=await readdir(join(output,section),{withFileTypes:true});}catch(error){if(error.code!=='ENOENT')throw error;}
+  for(const entry of entries)if(entry.isDirectory())await rm(join(output,section,entry.name),{recursive:true});
+}
+const catalogue=join(output,'catalogue.js');
+try{await writeFile(catalogue,(await readFile(catalogue,'utf8')).replace("fetch('/cars.json',","fetch('/api/public/catalogue',"));}catch(error){if(error.code!=='ENOENT')throw error;}
+try{await rm(join(output,'cars.json'));}catch(error){if(error.code!=='ENOENT')throw error;}
+await writeFile(join(output,'live-content.css'),'.collection-message{padding:36px;color:var(--muted)}.hero.has-featured-car .hero-copy h1{font-size:clamp(30px,5vw,66px);max-width:850px;line-height:1.06}.notice-content{max-width:800px}.notice-content p{line-height:1.8;overflow-wrap:anywhere}');
+home=await readFile(join(output,'index.html'),'utf8');await writeFile(join(output,'index.html'),home.replace('</head>','<link rel="stylesheet" href="/live-content.css"></head>'));
 const scripts=[...hashes].join(' ');
 const csp=`default-src 'none'; script-src 'self' ${scripts}; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; font-src 'self'; media-src 'self'; connect-src 'self'; frame-src https://www.google.com https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'`;
 await writeFile(join(output,'_headers'),`/*\n  Content-Security-Policy: ${csp}\n/admin/*\n  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'\n`);
 const forbidden=['backend','supabase','.env','node_modules','package.json','netlify','security'];
 for(const name of forbidden) {try{await stat(join(output,name));throw Error(`Private build artifact exposed: ${name}`);}catch(error){if(error.code!=='ENOENT')throw error;}}
-console.log(`Built ${relative(root,output)} with public assets and the guarded sign-in flow. Inventory management remains closed.`);
+console.log(`Built ${relative(root,output)} with live public catalogue and the MFA-protected workspace.`);

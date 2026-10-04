@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build"
+  command = "npm test && npm run build"
   publish = "netlify-public"
   functions = "netlify/functions"
 
@@ -8,6 +8,8 @@
 
 [functions]
   node_bundler = "esbuild"
+  external_node_modules = ["sharp"]
+  included_files = ["backend/templates/**"]
 
 [[headers]]
   for = "/*"

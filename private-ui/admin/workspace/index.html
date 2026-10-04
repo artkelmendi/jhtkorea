@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en" data-admin-theme="light">
+<head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="referrer" content="no-referrer">
+  
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111214">
+  <meta name="robots" content="noindex,nofollow">
+  
+  
+  <title>JHT Korea Admin</title>
+  <link rel="icon" href="/assets/brand-mark-circle.svg?v=2">
+  <link rel="stylesheet" href="workspace.css?v=1">
+  <script defer src="/security-data.js"></script>
+  <script defer src="workspace.js?v=1"></script>
+</head>
+<body>
+  <a class="skip-link" href="#admin-main">Skip to workspace</a>
+  <div class="admin-shell" hidden>
+    <aside class="admin-sidebar" id="admin-sidebar">
+      <div class="sidebar-brand">
+        <a href="./" aria-label="JHT Korea admin home"><img src="/assets/logo-white.svg" alt="JHT Korea" width="132" height="64"></a>
+        <button class="icon-button sidebar-close" id="sidebar-close" aria-label="Close navigation" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+      <nav class="admin-nav" aria-label="Admin navigation">
+        <button class="nav-item is-active" data-view="overview" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v7H4zM14 4h6v4h-6zM14 12h6v8h-6zM4 15h6v5H4z"/></svg><span>Overview</span></button>
+        <button class="nav-item" data-view="inventory" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 11 5.5 6h13l2.5 5M5 11h14v8H5zM7 19v2M17 19v2M7.5 14.5h.01M16.5 14.5h.01"/></svg><span>Inventory</span><span class="nav-count" id="nav-inventory-count">0</span></button>
+        <button class="nav-item" data-view="homepage" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m3 11 9-7 9 7M5 10v10h14V10M9 20v-6h6v6"/></svg><span>Homepage</span></button>
+        <button class="nav-item" data-view="notices" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg><span>Notices</span></button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="connection-state"><span></span><div><strong>Live workspace</strong><small>Database connected</small></div></div>
+        <a href="/" class="sidebar-site-link">Open customer website<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+      </div>
+    </aside>
+
+    <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
+
+    <main class="admin-main" id="admin-main">
+      <header class="admin-topbar">
+        <div class="topbar-start">
+          <button class="icon-button menu-button" id="sidebar-open" aria-label="Open navigation" aria-controls="admin-sidebar" aria-expanded="false" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          <div class="topbar-title"><span>JHT Korea</span><strong id="current-view-label">Overview</strong></div>
+        </div>
+        <div class="topbar-actions">
+          <label class="global-search"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg><span class="sr-only">Search inventory</span><input id="global-search" type="search" placeholder="Search vehicles"><kbd>/</kbd></label>
+          <button class="icon-button" id="theme-button" type="button" aria-label="Switch to dark mode"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg></button>
+          <a class="account-chip" href="/admin/" aria-label="Admin sign-in"><span>JK</span><div><strong>JHT Admin</strong><small>Administrator</small></div><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></svg></a>
+        </div>
+      </header>
+
+      <div class="prototype-note" role="status" id="workspace-status"><p><strong>Connecting your workspace…</strong> Loading live inventory securely.</p><button type="button" id="workspace-signout">Sign out</button></div>
+
+      <div class="admin-view is-active" data-panel="overview">
+        <section class="workspace-heading">
+          <div><p id="today-label">Inventory workspace</p><h1>Keep every car<br>ready for its next road.</h1></div>
+          <button class="primary-action" data-open-editor type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add vehicle</button>
+        </section>
+
+        <section class="metric-runway" aria-label="Inventory summary">
+          <article><span>All vehicles</span><strong id="metric-total">0</strong><small>Complete inventory</small></article>
+          <article><span>Available now</span><strong id="metric-available">0</strong><small>Visible to customers</small></article>
+          <article><span>Reserved</span><strong id="metric-reserved">0</strong><small>Temporarily held</small></article>
+          <article class="metric-attention"><span>Needs attention</span><strong id="metric-attention">0</strong><small>Missing details</small></article>
+        </section>
+
+        <section class="overview-grid">
+          <div class="panel inventory-preview">
+            <div class="panel-heading"><div><span>Inventory runway</span><h2>What customers can see</h2></div><button class="text-action" data-view-jump="inventory" type="button">Manage all<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg></button></div>
+            <div class="vehicle-list" id="overview-vehicle-list" aria-live="polite"></div>
+          </div>
+          <aside class="panel operations-panel">
+            <div class="panel-heading"><div><span>Today</span><h2>Clear next steps</h2></div></div>
+            <div class="task-list">
+              <button type="button" data-view-jump="homepage"><span class="task-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.9z"/></svg></span><div><strong>Choose this week’s feature</strong><small id="featured-task-copy">No featured vehicle selected</small></div><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+              <button type="button" data-view-jump="inventory"><span class="task-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 12h16M12 4v16"/></svg></span><div><strong>Add a new arrival</strong><small>Photos and vehicle details</small></div><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+              <button type="button" data-view-jump="notices"><span class="task-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 4h12v16H6zM9 9h6M9 13h6"/></svg></span><div><strong>Review customer notice</strong><small>Keep shipping information current</small></div><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+            <div class="publish-card"><span class="publish-pulse"></span><div><strong>Website is ready</strong><small>View the current published website</small></div><button type="button" id="preview-site">Preview</button></div>
+          </aside>
+        </section>
+      </div>
+
+      <div class="admin-view" data-panel="inventory" hidden>
+        <section class="page-heading"><div><p>Vehicle collection</p><h1>Inventory</h1><span>Update availability, prices, photos, and public visibility.</span></div><button class="primary-action" data-open-editor type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add vehicle</button></section>
+        <section class="panel inventory-panel">
+          <div class="inventory-toolbar">
+            <label class="inventory-search"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg><span class="sr-only">Search cars</span><input id="inventory-search" type="search" placeholder="Search model, brand, or reference"></label>
+            <div class="status-filters" aria-label="Filter inventory"><button class="is-active" data-status-filter="all" type="button">All</button><button data-status-filter="available" type="button">Available</button><button data-status-filter="reserved" type="button">Reserved</button><button data-status-filter="draft" type="button">Draft</button><button data-status-filter="sold" type="button">Sold</button><button data-status-filter="archived" type="button">Archived</button></div>
+            <label class="sort-control">Sort<span class="sr-only"> vehicles</span><select id="inventory-sort"><option value="recent">Recently added</option><option value="price-high">Price: high to low</option><option value="price-low">Price: low to high</option><option value="year">Newest year</option></select></label>
+          </div>
+          <div class="inventory-table-head" aria-hidden="true"><span>Vehicle</span><span>Price</span><span>Status</span><span>Homepage</span><span>Actions</span></div>
+          <div class="vehicle-list inventory-list" id="inventory-vehicle-list" aria-live="polite"></div>
+          <div class="empty-state" id="inventory-empty" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 11 5.5 6h13l2.5 5M5 11h14v8H5zM8 15h.01M16 15h.01"/></svg><h2>No vehicles found</h2><p>Try another search or add a new vehicle.</p><button class="primary-action" data-open-editor type="button">Add vehicle</button></div>
+        </section>
+      </div>
+
+      <div class="admin-view" data-panel="homepage" hidden>
+        <section class="page-heading"><div><p>Homepage control</p><h1>Put the right car forward.</h1><span>Choose the feature and decide how recent arrivals appear.</span></div><button class="primary-action" id="save-homepage" type="button">Save homepage</button></section>
+        <section class="homepage-layout">
+          <form class="panel homepage-form" id="homepage-form">
+            <div class="form-section-heading"><span>Hero feature</span><h2>Featured vehicle</h2><p>Use a live inventory vehicle as the homepage focus. Its image, price, and link stay in sync.</p></div>
+            <label class="field"><span>Vehicle</span><select id="featured-vehicle"><option value="">Choose an available vehicle</option></select></label>
+            <div class="switch-row"><div><strong>Show price in the feature</strong><small>Display the current listed price beside the vehicle.</small></div><label class="switch"><input id="feature-show-price" type="checkbox" checked><span aria-hidden="true"></span><span class="sr-only">Show price in featured vehicle</span></label></div>
+            <div class="switch-row"><div><strong>Show featured label</strong><small>Add a small “Featured vehicle” marker.</small></div><label class="switch"><input id="feature-show-label" type="checkbox" checked><span aria-hidden="true"></span><span class="sr-only">Show featured label</span></label></div>
+            <div class="form-divider"></div>
+            <div class="form-section-heading"><span>Recent arrivals</span><h2>Collection order</h2></div>
+            <label class="radio-row"><input type="radio" name="arrival-order" value="automatic" checked><span><strong>Automatic</strong><small>Show the ten newest available vehicles.</small></span></label>
+            <label class="radio-row"><input type="radio" name="arrival-order" value="manual"><span><strong>Manual selection</strong><small>Choose up to ten vehicles in the order they should appear.</small></span></label><div id="manual-arrivals" class="manual-arrivals"></div>
+          </form>
+          <aside class="feature-preview" aria-label="Homepage featured vehicle preview">
+            <div class="preview-top"><span>Customer preview</span><strong>Homepage</strong></div>
+            <div class="feature-visual" id="feature-visual"><img id="feature-image" src="/assets/car-1.webp" alt="Selected featured vehicle"><div class="feature-veil"></div><div class="feature-copy"><span id="feature-label">Featured vehicle</span><h2 id="feature-title">Choose a vehicle</h2><p id="feature-meta">Your selection will appear here.</p><strong id="feature-price">—</strong><button type="button" tabindex="-1">Explore this car</button></div></div>
+            <p>This preview shows content and hierarchy. The public homepage keeps its full animation and responsive treatment.</p>
+          </aside>
+        </section>
+      </div>
+
+      <div class="admin-view" data-panel="notices" hidden>
+        <section class="page-heading"><div><p>Customer information</p><h1>Notices</h1><span>Prepare timely updates for shipping, holidays, or service changes.</span></div><button class="primary-action" id="new-notice" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New notice</button></section>
+        <section class="panel notices-panel" id="notice-list" aria-live="polite"></section>
+      </div>
+    </main>
+  </div>
+
+  <div class="editor-backdrop" id="editor-backdrop" hidden></div>
+  <aside class="vehicle-editor" role="dialog" aria-modal="true" id="vehicle-editor" aria-labelledby="editor-title" aria-hidden="true">
+    <form id="vehicle-form" novalidate>
+      <header class="editor-header"><div><span id="editor-mode">New inventory record</span><h2 id="editor-title">Add vehicle</h2></div><button class="icon-button" id="editor-close" type="button" aria-label="Close vehicle editor"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+      <div class="editor-body">
+        <div class="form-error" id="form-error" role="alert" tabindex="-1" hidden><strong>Check the highlighted fields</strong><p>Complete the required information before saving.</p></div>
+        <section class="editor-section"><div class="editor-section-heading"><span>01</span><div><h3>Vehicle identity</h3><p>The information customers use to recognize this car.</p></div></div><div class="field-grid"><label class="field"><span>Brand <b>*</b></span><input id="car-brand" name="brand" required autocomplete="off"></label><label class="field"><span>Model <b>*</b></span><input id="car-model" name="model" required autocomplete="off"></label><label class="field"><span>Year <b>*</b></span><input id="car-year" name="year" type="number" min="1980" max="2030" required></label><label class="field"><span>Reference <b>*</b></span><input id="car-ref" name="ref" placeholder="CK-2026-000" required autocomplete="off"></label><label class="field"><span>Body style</span><select id="car-body" name="body"><option>SUV</option><option>Sedan</option><option>Hatchback</option><option>Van</option><option>Coupe</option><option>Pickup</option></select></label><label class="field"><span>Public status</span><select id="car-status" name="status"><option value="available">Available</option><option value="reserved">Reserved</option><option value="sold">Sold</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label></div></section>
+        <section class="editor-section"><div class="editor-section-heading"><span>02</span><div><h3>Price and specifications</h3><p>Clear details that help customers compare.</p></div></div><div class="field-grid"><label class="field price-field"><span>Price in USD <b>*</b></span><div><span>$</span><input id="car-price" name="price" type="number" min="0" step="0.01" required></div></label><label class="field"><span>Fuel</span><select id="car-fuel" name="fuel"><option>Diesel</option><option>Gasoline</option><option>Hybrid</option><option>Electric</option><option>LPG</option></select></label><label class="field"><span>Transmission</span><select id="car-transmission" name="transmission"><option>Automatic</option><option>Manual</option></select></label><label class="field"><span>Seats</span><input id="car-seats" name="seats" type="number" min="2" max="15" value="5"></label><label class="field"><span>Mileage</span><input id="car-mileage" name="mileage" type="number" min="0" placeholder="Confirm later"></label></div></section>
+        <section class="editor-section"><div class="editor-section-heading"><span>03</span><div><h3>Vehicle photos</h3><p>Add up to twelve JPG, PNG, or WebP photos, each under 4 MB.</p></div></div><label class="photo-drop" id="photo-drop"><input id="car-photos" name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 14v6h14v-6"/></svg><strong>Drop photos here or choose files</strong><small>The first photo is the cover. Use the arrows below to reorder.</small></label><div class="photo-preview" id="photo-preview"></div></section>
+      </div>
+      <footer class="editor-footer"><button class="secondary-action" id="save-draft" type="button">Save draft</button><button class="primary-action" type="submit"><span>Publish vehicle</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></footer>
+    </form>
+  </aside>
+
+  <div class="confirm-dialog" id="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title" hidden><div><span class="confirm-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M8 10v8M12 10v8M16 10v8M7 7l1 14h8l1-14"/></svg></span><h2 id="confirm-title">Archive this vehicle?</h2><p>It will disappear from the public collection but remain available in the admin workspace.</p><div><button class="secondary-action" id="cancel-archive" type="button">Keep vehicle</button><button class="danger-action" id="confirm-archive" type="button">Archive vehicle</button></div></div></div>
+  <div class="welcome-overlay" id="welcome-overlay" aria-live="polite"><img src="/assets/logo-white.svg" alt="JHT Korea" width="130" height="66"><span>PRIVATE WORKSPACE</span><h1>Welcome, admin.</h1><p>Your collection. Ready for the next move.</p></div><dialog class="notice-editor" id="notice-editor"><form id="notice-form"><header><div><span>CUSTOMER UPDATE</span><h2 id="notice-editor-title">New notice</h2></div><button type="button" id="notice-close" aria-label="Close notice editor">Close</button></header><label class="field"><span>Title</span><input name="title" required maxlength="160"></label><label class="field"><span>Notice text</span><textarea name="content" required maxlength="15000" rows="10"></textarea></label><label class="field"><span>Status</span><select name="status"><option value="draft">Draft</option><option value="published">Published</option></select></label><p id="notice-error" role="alert"></p><button class="primary-action" type="submit">Save notice</button></form></dialog><div class="toast" id="admin-toast" role="status" aria-live="polite"></div>
+</body>
+</html>

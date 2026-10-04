@@ -9,9 +9,13 @@ const {createHash}=require('node:crypto');
 
 test('production build isolates secrets, keeps Pages closed and supplies the real same-origin sign-in only on Netlify',async()=>{
   const root=await mkdtemp(join(tmpdir(),'jht-build-security-'));
-  for(const dir of ['security','public-site/admin','public-site/.github','private-ui/admin','backend'])await mkdir(join(root,dir),{recursive:true});
+  for(const dir of ['security','public-site/admin','public-site/.github','private-ui/admin','backend','public-site/cars/hidden-car'])await mkdir(join(root,dir),{recursive:true});
   const boot="window.theme='dark';";
-  await writeFile(join(root,'public-site/index.html'),`<script>${boot}</script><a href="/jhtkorea/cars/">Cars</a>`);
+  await writeFile(join(root,'public-site/index.html'),`<head><script>${boot}</script></head><a href="/jhtkorea/cars/">Cars</a><div id="latest-carousel"><article class="car-card"><div>STALE_INVENTORY_CANARY</div></article></div><footer>Footer stays</footer>`);
+  await writeFile(join(root,'public-site/cars/hidden-car/index.html'),'STALE_DETAIL_CANARY');
+  await writeFile(join(root,'public-site/cars.json'),'STALE_INVENTORY_CANARY');
+  await writeFile(join(root,'public-site/catalogue.js'),"fetch('/jhtkorea/cars.json',{cache:'no-store'});");
+  await writeFile(join(root,'private-ui/live-home.js'),'LIVE_COLLECTION_LOADER');
   await writeFile(join(root,'public-site/admin/index.html'),'Management access is closed.');
   await writeFile(join(root,'public-site/.github/workflow.yml'),'PRIVATE_WORKFLOW');
   await writeFile(join(root,'backend/private.mjs'),'SECRET_CANARY');
@@ -24,6 +28,9 @@ test('production build isolates secrets, keeps Pages closed and supplies the rea
   const entries=await readdir(output);
   for(const forbidden of ['backend','.env','.github','private-ui','security'])assert.equal(entries.includes(forbidden),false);
   assert.match(await readFile(join(output,'index.html'),'utf8'),/href="\/cars\/"/);
+  const home=await readFile(join(output,'index.html'),'utf8');assert.doesNotMatch(home,/STALE_INVENTORY_CANARY/);assert.match(home,/\/security-data.js/);assert.match(home,/Footer stays/);
+  assert.equal(entries.includes('cars.json'),false);assert.deepEqual(await readdir(join(output,'cars')),[]);
+  assert.match(await readFile(join(output,'catalogue.js'),'utf8'),/\/api\/public\/catalogue/);
   assert.match(await readFile(join(output,'admin/index.html'),'utf8'),/Private sign-in/);
   assert.match(await readFile(join(root,'public-site/admin/index.html'),'utf8'),/access is closed/);
   const headers=await readFile(join(output,'_headers'),'utf8');

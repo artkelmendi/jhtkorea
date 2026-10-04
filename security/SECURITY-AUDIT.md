@@ -8,6 +8,18 @@ A real server foundation and private Supabase database have been prepared, and t
 
 No system can guarantee zero attacks or zero risk. This review is a code/configuration review with targeted automated tests, not an independent penetration test or certification.
 
+## Prepared inventory integration — awaiting live activation
+
+The next release implements database-backed vehicle creation, editing, archive and permanent deletion; processed photo uploads; a public field allowlist; server-rendered detail pages; available/reserved visibility; HTTP 404 for sold/draft/archived records; featured-vehicle selection; automatic/manual arrivals; and draft/published notices. The real admin uses same-origin protected API calls instead of browser storage. A brief reduced-motion-aware welcome transition follows verified sign-in.
+
+Twenty-two automated tests pass, including real PostgreSQL CRUD/version conflicts, homepage references, private storage visibility, malformed/executable uploads, metadata stripping and public HTML escaping. Isolated browser checks confirmed gallery reordering and price saves, homepage/manual-arrival saves and rendering, and notice saves. The production build was verified to exclude static detail routes, stale catalogue JSON and private files. The production dependency audit reported zero known vulnerabilities at this check.
+
+The cloud migration and sole-account management activation have been prepared but have not yet been applied. The website still runs the previous protected sign-in release until that activation and deployment are completed. Live write/upload verification remains outstanding. The existing administrator's replacement TOTP factor was independently confirmed verified; management is still disabled.
+
+Uploads are limited to twelve photos per listing and 4 MB per request, authenticated before decoding, validated by real JPEG/PNG/WebP signatures, bounded to 32 million input pixels, decoded and re-encoded to WebP at up to 1800 pixels and 2 MB, with original metadata dropped. The private bucket accepts only processed WebP. Uploaded media is served with no-store only when referenced by an available/reserved vehicle, or after administrator AAL2 authorization. Unreferenced photo objects remain private; periodic object cleanup and tested backup restoration remain operations work. Existing bundled sample images and already downloaded copies remain public and cannot be recalled.
+
+Notice editing accepts bounded plain text, escaped when rendering; no arbitrary HTML, script or Markdown execution is exposed. Permanent deletes require the record version. Attempt and successful mutation audit events are recorded; comprehensive failure reporting and alerting remain incomplete. The function also declares an IP rate limit, in addition to durable authentication/upload/admin limits; its live hosting behavior remains to be verified.
+
 ## Evidence and scope
 
 | Check | Result |
@@ -59,7 +71,7 @@ The old PHP site at jhtcar.com, provider employees, devices, recovery email secu
 
 ## Remaining limitations
 
-- Twenty automated tests pass. The deployed negative tests above pass. The original invited account completed provider-verified TOTP, then was deleted and recreated at the owner's explicit request on 4 October 2026. Its old account and application sessions were verified absent. A replacement invitation was sent; the new identity must complete fresh password/MFA setup and remains disabled for management. A bootstrap bug that excluded unverified factors was fixed and given a regression test. The status screen distinguishes completed authentication from inventory management that is still closed. No password or authenticator secret has been requested through chat.
+- Twenty foundation tests passed before this integration; the current suite has twenty-two tests. The deployed negative tests above pass. The original invited account completed provider-verified TOTP, then was deleted and recreated at the owner's explicit request on 4 October 2026. Its old account and application sessions were verified absent. A replacement invitation was sent; the new identity must complete fresh password/MFA setup and remains disabled for management. A bootstrap bug that excluded unverified factors was fixed and given a regression test. The status screen distinguishes completed authentication from inventory management that is still closed. No password or authenticator secret has been requested through chat.
 - Vehicle uploads, published database inventory, new dynamic vehicle detail URLs, live sold/archive removal, recovery and complete audit outcomes are not delivered by this security foundation. The customer site still uses static sample content. Their implementation and deployment tests are required before opening management.
 - The provider's direct authentication endpoints also exist. Application rate limits do not replace provider abuse controls; Supabase has its own endpoint limits. Review/tighten those controls and add bot protection as appropriate before release.
 - Hosting-account MFA, branch protection, backups/restoration and alerting have not been fully verified. The app's MFA does not protect a compromised hosting or repository owner account.
