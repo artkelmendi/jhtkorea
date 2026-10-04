@@ -1,0 +1,19 @@
+{
+  "name": "jht-korea-private-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test security/*.test.cjs backend/*.test.mjs",
+    "build": "node security/build-netlify.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.2"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8"
+  }
+}

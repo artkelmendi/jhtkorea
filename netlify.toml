@@ -1,0 +1,33 @@
+[build]
+  command = "npm run build"
+  publish = "netlify-public"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), camera=(), microphone=(), payment=(), usb=()"
+    Strict-Transport-Security = "max-age=31536000"
+
+[[headers]]
+  for = "/admin/*"
+  [headers.values]
+    Cache-Control = "private, no-store, max-age=0"
+    Referrer-Policy = "no-referrer"
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "private, no-store, max-age=0"
+    Netlify-CDN-Cache-Control = "no-store"
+    Referrer-Policy = "no-referrer"
