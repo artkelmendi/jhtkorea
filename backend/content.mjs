@@ -1,5 +1,5 @@
 import { HttpError, exactKeys, noStoreHeaders } from './policy.mjs';
-import { readFile } from 'node:fs/promises';
+import shell from './page-template.mjs';
 import { createHash } from 'node:crypto';
 export const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const asset=value=>typeof value==='string' && (/^assets\/[a-z0-9][a-z0-9._-]*\.(?:webp|jpe?g|png)$/i.test(value)||/^api\/media\/[0-9a-f-]{36}\.webp$/.test(value));
@@ -19,9 +19,7 @@ export async function publishedRows(service) {
   const {data,error}=await service.from('jht_vehicles').select('id,slug,status,payload,created_at').in('status',['available','reserved']).order('created_at',{ascending:false}).limit(500);
   if(error)throw new HttpError(503,'The collection is temporarily unavailable.');return data;
 }
-let shell;
 async function page(main,title,status=200) {
-  shell ||= await readFile(new URL('./templates/page.html',import.meta.url),'utf8');
   const html=shell.replace('JHT_PAGE_TITLE',escape(title)).replace('JHT_PAGE_MAIN',main);
   const hashes=[...html.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>`'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`).join(' ');
   const csp=`default-src 'none'; script-src 'self' ${hashes}; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; font-src 'self'; media-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'`;
