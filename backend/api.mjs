@@ -1,3 +1,4 @@
+import {validateVehicle} from './vehicle-input.mjs';
 import { handleAuctions } from './auctions.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { asset, publicVehicle, publishedRows, validateNotice, vehiclePage, unavailablePage, noticesPage, noticePage } from './content.mjs';
@@ -17,18 +18,6 @@ async function rpc(service, name, args) {
 }
 async function throttle(service,key,limit=5,seconds=900) {
   if (!await rpc(service,'jht_rate_limit',{p_key:digest(key),p_limit:limit,p_seconds:seconds})) throw new HttpError(429,'Please wait before trying again.');
-}
-function validateVehicle(body) {
-  const fields=['slug','brand','model','ref','body','fuel','transmission','year','price','mileage','seats','status','image','gallery','version'];
-  exactKeys(body,fields);
-  for (const field of ['brand','model','ref','body','fuel','transmission']) if (typeof body[field]!=='string' || !body[field].trim() || body[field].length>120) throw new HttpError(400,'Invalid vehicle details.');
-  for (const [field,min,max] of [['year',1980,2030],['price',0,10000000],['seats',2,15]]) if (typeof body[field]!=='number' || !Number.isFinite(body[field]) || body[field]<min || body[field]>max) throw new HttpError(400);
-  if (!Number.isInteger(body.year) || !Number.isInteger(body.seats)) throw new HttpError(400);
-  if (body.mileage!==null && (typeof body.mileage!=='number' || !Number.isFinite(body.mileage) || body.mileage<0 || body.mileage>3000000)) throw new HttpError(400);
-  if (typeof body.slug!=='string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(body.slug) || body.slug.length>100 || !statuses.includes(body.status)) throw new HttpError(400);
-  if (!asset(body.image) || !Array.isArray(body.gallery) || body.gallery.length>12 || body.gallery.some(value=>!asset(value))) throw new HttpError(400,'Invalid image reference.');
-  const payload=Object.fromEntries(fields.filter(field=>!['slug','status','version'].includes(field)).map(field=>[field,body[field]]));
-  return {slug:body.slug,status:body.status,payload};
 }
 const rowToVehicle = row => ({...row.payload,id:row.id,slug:row.slug,status:row.status,version:row.version,createdAt:Date.parse(row.created_at)});
 
@@ -184,7 +173,7 @@ export async function handle(request, context = {}, dependencies = {}) {
     // Every management route passes through this server guard, including unknown endpoints.
     const verified=await identity();
     await throttle(service,`admin:${verified.user.id}`,request.method==='GET'?300:60,60);
-    if(path.startsWith('/api/admin/auctions')||path.startsWith('/api/admin/bidders'))return await handleAuctions(request,{path,service,auth,settings,context,admin:verified});
+    if(path.startsWith('/api/admin/auctions')||path.startsWith('/api/admin/bidders')||path.startsWith('/api/admin/bid-vehicles'))return await handleAuctions(request,{path,service,auth,settings,context,admin:verified});
     if(path==='/api/admin/uploads' && request.method==='POST') {
       await throttle(service,`upload:${verified.user.id}`,120,3600);
       const image=await readImage(request);
@@ -216,7 +205,7 @@ export async function handle(request, context = {}, dependencies = {}) {
       await validImages(vehicle);
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.update.attempt',p_record:match[1]});
       const {data,error}=await service.from('jht_vehicles').update({...vehicle,version:body.version+1}).eq('id',match[1]).eq('version',body.version).select().maybeSingle();
-      if(error) throw new HttpError(['23505','23514'].includes(error.code)?409:503,error.code==='23514'?'Cancel the active bidding session before changing this car status.':undefined);if(!data) throw new HttpError(409,'The record changed. Reload before saving.');
+      if(error) throw new HttpError(error.code==='23505'?409:503);if(!data) throw new HttpError(409,'The record changed. Reload before saving.');
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.update.success',p_record:data.id});
       return reply({vehicle:rowToVehicle(data)});
     }
@@ -225,7 +214,7 @@ export async function handle(request, context = {}, dependencies = {}) {
       const body=await jsonBody(request);exactKeys(body,['version']);if(!Number.isInteger(body.version)||body.version<1)throw new HttpError(400);
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.delete.attempt',p_record:match[1]});
       const {data,error}=await service.from('jht_vehicles').delete().eq('id',match[1]).eq('version',body.version).select('id').maybeSingle();
-      if(error)throw new HttpError(error.code==='23503'?409:503,error.code==='23503'?'This car has bidding history. Archive it instead of deleting it.':undefined);if(!data)throw new HttpError(409,'The record changed. Reload before deleting.');
+      if(error)throw new HttpError(503);if(!data)throw new HttpError(409,'The record changed. Reload before deleting.');
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.delete.success',p_record:data.id});
       return reply({deleted:true});
     }

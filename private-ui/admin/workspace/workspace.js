@@ -6,7 +6,7 @@
     vehicles: [],
     filteredStatus: 'all',
     query: '',
-    editingId: null,
+    editingId: null, bidMode: false,
     archiveId: null,
     photoUrls: [], photos: [], notices: [], noticeId: null, busy: false, deleteMode: false,
     homepage: { featuredId: '', showPrice: true, showLabel: true, arrivalOrder: 'automatic', arrivalIds: [] }
@@ -200,7 +200,8 @@
       panel.hidden = !active;
     });
     $$('.nav-item').forEach(button => button.classList.toggle('is-active', button.dataset.view === name));
-    $('#current-view-label').textContent = ({auctions:'Bidding sessions',bidders:'Invited members'}[name] || name.charAt(0).toUpperCase() + name.slice(1));
+    $('#current-view-label').textContent = ({auctions:'Bidding sessions',bidders:'Invited members',bidcars:'Bidding cars'}[name] || name.charAt(0).toUpperCase() + name.slice(1));
+    $('#workspace-status p').innerHTML=['bidcars','auctions','bidders'].includes(name)?'<strong>Private bidding</strong> Bidding cars stay separate from public sale inventory. Only assigned members can enter a session.':'<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
     document.dispatchEvent(new CustomEvent('jht:admin-view',{detail:name}));
     closeSidebar();
     window.scrollTo({ top: 0, behavior:'instant' });
@@ -229,8 +230,9 @@
   }
 
 
+  function editorCollection(){return state.bidMode?window.JHTAuctionsAdmin.vehicles():state.vehicles;}
   function brandOptions(selected='') {
-    const choices=window.JHTVehicleOptions.brands(state.vehicles);
+    const choices=window.JHTVehicleOptions.brands(editorCollection());
     const brand=window.JHTVehicleOptions.canonical(selected,choices);
     $('#car-brand-choice').innerHTML='<option value="">Choose a brand</option>'+choices.map(b=>'<option>'+escapeHTML(b)+'</option>').join('')+'<option value="__new__">＋ Add another brand</option>';
     $('#car-brand-choice').value=choices.includes(brand)?brand:brand?'__new__':'';
@@ -238,7 +240,7 @@
     modelOptions();
   }
   function modelOptions(selected='') {
-    const brand=$('#car-brand').value.trim(),choices=window.JHTVehicleOptions.models(state.vehicles,brand);
+    const brand=$('#car-brand').value.trim(),choices=window.JHTVehicleOptions.models(editorCollection(),brand);
     const model=window.JHTVehicleOptions.canonical(selected,choices),select=$('#car-model-choice');
     select.disabled=!brand;
     select.innerHTML='<option value="">'+(brand?'Choose a model / version':'Choose a brand first')+'</option>'+choices.map(m=>'<option>'+escapeHTML(m)+'</option>').join('')+'<option value="__new__">＋ Add a model / version</option>';
@@ -247,9 +249,9 @@
     $('#model-help').textContent=!brand?'Choose the brand first.':choices.length?'Reuse an existing model or add a new version.':'No saved models yet. Add the first model for this brand.';
   }
 
-  function openEditor(vehicle = null) {
+  function openEditor(vehicle = null, bidding = false) {
     if(state.busy)return;
-    state.editingId = vehicle?.id || null;
+    state.bidMode=bidding;state.editingId = vehicle?.id || null;$('#car-status-label').textContent=bidding?'Bidding status · private':'Public status';$('#car-price-label').textContent=bidding?'Suggested opening bid · USD':'Price in USD';$('#car-price').step=bidding?'1':'0.01';$('#car-price').min=bidding?'1':'0';$('#car-status').options[0].textContent=bidding?'Ready for bidding':'Available';$('#car-ref').placeholder=bidding?'BID-2026-000':'CK-2026-000';$('#vehicle-form .editor-footer button[type=submit] span').textContent=bidding?'Save bidding car':'Publish vehicle';
     state.photoUrls.forEach(url => URL.revokeObjectURL(url));
     state.photoUrls = []; state.photos=[];
     $('#vehicle-form').reset();
@@ -259,12 +261,12 @@
     setFormValue('status', 'available');
     if (vehicle) {
       ['brand', 'model', 'year', 'ref', 'body', 'status', 'price', 'fuel', 'transmission', 'seats', 'mileage'].forEach(key => setFormValue(key, vehicle[key]));
-      $('#editor-mode').textContent = vehicle.ref || 'Inventory record';
+      $('#editor-mode').textContent = bidding?'PRIVATE BIDDING CAR · '+vehicle.ref:vehicle.ref || 'Inventory record';
       $('#editor-title').textContent = `Edit ${vehicle.brand} ${vehicle.model}`;
       state.photos=[...new Set([vehicle.image,...(vehicle.gallery||[])])].filter(Boolean).map(path=>({path,url:imagePath(path)})); renderPhotos();
     } else {
-      $('#editor-mode').textContent = 'New inventory record';
-      $('#editor-title').textContent = 'Add vehicle';
+      $('#editor-mode').textContent = bidding?'PRIVATE BIDDING COLLECTION':'New inventory record';
+      $('#editor-title').textContent = bidding?'Add bidding car':'Add vehicle';
     }
     brandOptions(vehicle?.brand||'');modelOptions(vehicle?.model||'');
     state.editorTrigger=document.activeElement;$('.admin-shell').inert=true;
@@ -318,9 +320,9 @@
     }
     const entries = new FormData(form);
     const data = Object.fromEntries(['brand', 'model', 'year', 'ref', 'body', 'status', 'price', 'fuel', 'transmission', 'seats', 'mileage'].map(key => [key, entries.get(key)]));
-    data.brand=window.JHTVehicleOptions.canonical(data.brand,window.JHTVehicleOptions.brands(state.vehicles));
-    data.model=window.JHTVehicleOptions.canonical(data.model,window.JHTVehicleOptions.models(state.vehicles,data.brand));
-    const previous = state.vehicles.find(vehicle => String(vehicle.id) === String(state.editingId));
+    data.brand=window.JHTVehicleOptions.canonical(data.brand,window.JHTVehicleOptions.brands(editorCollection()));
+    data.model=window.JHTVehicleOptions.canonical(data.model,window.JHTVehicleOptions.models(editorCollection(),data.brand));
+    const previous = (state.bidMode?window.JHTAuctionsAdmin.vehicles():state.vehicles).find(vehicle => String(vehicle.id) === String(state.editingId));
     const refSlug = slugify(data.ref);
     return {
       ...previous,
@@ -342,10 +344,10 @@
     if(!state.photos.length){showToast('Add at least one vehicle photo before saving.');return;}
     await operate(async()=>{
       await uploadPhotos();showToast('Saving vehicle details…', 'busy');vehicle.image=state.photos[0].path;vehicle.gallery=state.photos.map(photo=>photo.path);
-      const existing=state.vehicles.find(v=>v.id===state.editingId);
-      const result=await api('admin/vehicles'+(existing?'/'+existing.id:''),writable(vehicle),existing?'PUT':'POST');
-      if(existing)state.vehicles[state.vehicles.indexOf(existing)]=result.vehicle;else state.vehicles.unshift(result.vehicle);
-      renderAll();closeEditor(true);showToast(result.vehicle.status==='draft'?'Draft saved privately.':'Saved. The customer website is up to date.');
+      const bidding=state.bidMode,collection=bidding?window.JHTAuctionsAdmin.vehicles():state.vehicles,existing=collection.find(v=>v.id===state.editingId);
+      const result=await api((bidding?'admin/bid-vehicles':'admin/vehicles')+(existing?'/'+existing.id:''),writable(vehicle),existing?'PUT':'POST');
+      if(bidding)await window.JHTAuctionsAdmin.refresh();else{if(existing)state.vehicles[state.vehicles.indexOf(existing)]=result.vehicle;else state.vehicles.unshift(result.vehicle);renderAll();}
+      closeEditor(true);showToast(bidding?'Bidding car saved privately. Select it when creating a session.':result.vehicle.status==='draft'?'Draft saved privately.':'Saved. The customer website is up to date.');
     });
   }
   function requestArchive(id,deleteMode=false) {
@@ -498,7 +500,7 @@
     try{
       const session=await api('auth/session');if(!session.mfaVerified||!session.accessEnabled){location.replace('/admin/');return;}
       try{applyTheme(localStorage.getItem(THEME_KEY)||'light');}catch{applyTheme('light');}
-      wireEvents();window.JHTAuctionsAdmin.init({api,operate,showToast,vehicles:()=>state.vehicles,reloadInventory:loadInventory});$('#vehicle-editor').inert=true;
+      wireEvents();window.JHTAuctionsAdmin.init({api,operate,showToast,vehicles:()=>state.vehicles,reloadInventory:loadInventory,openBidCar:v=>openEditor(v,true),writable});$('#vehicle-editor').inert=true;
       $('#today-label').textContent=new Intl.DateTimeFormat('en',{weekday:'long',month:'long',day:'numeric'}).format(new Date());
       await Promise.all([loadInventory(), window.JHTAdminFontsReady]);$('.admin-shell').hidden=false;$('#workspace-status p').innerHTML='<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
       const welcome = $('#welcome-overlay');

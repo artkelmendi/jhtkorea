@@ -4,6 +4,12 @@ insert into jht_private.auction_guard values(true);
 alter table jht_private.auction_guard enable row level security;
 revoke all on jht_private.auction_guard from public,anon,authenticated;
 grant all on jht_private.auction_guard to service_role;
+create table jht_private.bid_vehicles (
+ id uuid primary key default gen_random_uuid(),slug text not null unique check(slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+ status text not null default 'draft' check(status in ('available','reserved','sold','draft','archived')),
+ payload jsonb not null check(jsonb_typeof(payload)='object'),version integer not null default 1,
+ created_at timestamptz not null default now()
+);
 create table jht_private.bidders (
  id uuid primary key default gen_random_uuid(), user_id uuid unique references auth.users(id) on delete restrict,
  email text not null unique check(email=lower(email) and length(email)<=254), name text not null check(length(name) between 1 and 100),
@@ -25,7 +31,7 @@ create table jht_private.auction_members (
 );
 create table jht_private.auction_lots (
  id uuid primary key default gen_random_uuid(), auction_id uuid not null references jht_private.auctions(id),
- vehicle_id uuid not null references public.jht_vehicles(id) on delete restrict,
+ vehicle_id uuid not null references jht_private.bid_vehicles(id) on delete restrict,
  snapshot jsonb not null, opening_amount bigint not null check(opening_amount between 1 and 10000000),
  increment bigint not null check(increment between 1 and 100000), closes_at timestamptz not null,
  highest_amount bigint, highest_bidder uuid references jht_private.bidders(id), bid_count integer not null default 0,
@@ -42,12 +48,27 @@ create index on jht_private.auction_lots(vehicle_id);
 create index on jht_private.bid_sessions(bidder_id);
 -- Every table and function is server-only. No browser-role data policies.
 do $$ declare t text; begin
- foreach t in array array['bidders','bid_sessions','auctions','auction_members','auction_lots','bids'] loop
+ foreach t in array array['bid_vehicles','bidders','bid_sessions','auctions','auction_members','auction_lots','bids'] loop
  execute format('alter table jht_private.%I enable row level security',t);
  execute format('revoke all on jht_private.%I from public,anon,authenticated',t);
  execute format('grant all on jht_private.%I to service_role',t);
  end loop;
 end $$;
+create function public.jht_bid_vehicle_list(p_actor uuid) returns jsonb language plpgsql security definer set search_path='' as $$begin
+ if not exists(select 1 from jht_private.admin_slots where user_id=p_actor and enabled) then return jsonb_build_object('error','denied');end if;
+ return jsonb_build_object('vehicles',coalesce((select jsonb_agg(payload||jsonb_build_object('id',id,'slug',slug,'status',status,'version',version,'createdAt',extract(epoch from created_at)*1000,'locked',exists(select 1 from jht_private.auction_lots l join jht_private.auctions a on a.id=l.auction_id where l.vehicle_id=v.id and a.status='scheduled' and (l.closes_at>clock_timestamp() or l.highest_amount is not null and l.confirmed_at is null))) order by created_at desc) from jht_private.bid_vehicles v),'[]'::jsonb));end $$;
+create function public.jht_bid_vehicle_save(p_actor uuid,p_id uuid,p_version integer,p_slug text,p_status text,p_payload jsonb) returns jsonb language plpgsql security definer set search_path='' as $$declare v jht_private.bid_vehicles;begin
+ if not exists(select 1 from jht_private.admin_slots where user_id=p_actor and enabled) then return jsonb_build_object('error','denied');end if;
+ perform id from jht_private.auction_guard where id for update;
+ if p_id is null then insert into jht_private.bid_vehicles(slug,status,payload) values(p_slug,p_status,p_payload) returning * into v;
+ else
+ select * into v from jht_private.bid_vehicles where id=p_id for update;
+ if not found then return jsonb_build_object('error','missing');end if;
+ if v.version<>p_version or exists(select 1 from jht_private.auction_lots l join jht_private.auctions a on a.id=l.auction_id where l.vehicle_id=p_id and a.status='scheduled' and (l.closes_at>clock_timestamp() or l.highest_amount is not null and l.confirmed_at is null)) then return jsonb_build_object('error','locked');end if;
+ update jht_private.bid_vehicles set slug=p_slug,status=p_status,payload=p_payload,version=version+1 where id=p_id returning * into v;
+ end if;
+ insert into jht_private.audit(actor,action,record_id) values(p_actor,'bid.vehicle.save',v.id::text);
+ return jsonb_build_object('vehicle',v.payload||jsonb_build_object('id',v.id,'slug',v.slug,'status',v.status,'version',v.version,'createdAt',extract(epoch from v.created_at)*1000));end $$;
 create function public.jht_bidder_list(p_actor uuid) returns jsonb language plpgsql security definer set search_path='' as $$begin
  if not exists(select 1 from jht_private.admin_slots where user_id=p_actor and enabled) then return jsonb_build_object('error','denied');end if;
  return jsonb_build_object('bidders',coalesce((select jsonb_agg(r) from (select (to_jsonb(b)-'user_id'-'created_by')||jsonb_build_object('invite_delivered',b.user_id is not null) r from jht_private.bidders b order by created_at desc limit 200) q),'[]'::jsonb));end $$;
@@ -91,7 +112,7 @@ language plpgsql security definer set search_path='' as $$begin
  return jsonb_build_object('saved',true);end $$;
 create function public.jht_auction_save(p_actor uuid,p_id uuid,p_version integer,p_title text,p_slug text,p_start timestamptz,p_end timestamptz,p_status text,p_lots jsonb,p_members uuid[]) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare a jht_private.auctions;v public.jht_vehicles;l jsonb;new_id uuid;begin
+declare a jht_private.auctions;v jht_private.bid_vehicles;l jsonb;new_id uuid;begin
  if not exists(select 1 from jht_private.admin_slots where user_id=p_actor and enabled) then return jsonb_build_object('error','denied');end if;
  -- All schedules and bid acceptance take this lock first, then the lot lock. It also prevents overlapping car reservations.
  perform id from jht_private.auction_guard where id for update;
@@ -110,7 +131,7 @@ declare a jht_private.auctions;v public.jht_vehicles;l jsonb;new_id uuid;begin
  end if;
  -- Lock vehicle rows to serialize with inventory deletion/update.
  for l in select value from jsonb_array_elements(p_lots) loop
- select * into v from public.jht_vehicles where id=(l->>'vehicle_id')::uuid for update;
+ select * into v from jht_private.bid_vehicles where id=(l->>'vehicle_id')::uuid for update;
  if not found or v.status<>'available' or (l->>'opening_amount')::bigint not between 1 and 10000000 or (l->>'increment')::bigint not between 1 and 100000 then return jsonb_build_object('error','invalid');end if;
  if p_status='scheduled' and exists(select 1 from jht_private.auction_lots x join jht_private.auctions s on s.id=x.auction_id
  where x.vehicle_id=v.id and s.status='scheduled' and s.id is distinct from p_id
@@ -122,7 +143,7 @@ declare a jht_private.auctions;v public.jht_vehicles;l jsonb;new_id uuid;begin
  delete from jht_private.auction_members where auction_id=p_id;delete from jht_private.auction_lots where auction_id=p_id;
  end if;
  for l in select value from jsonb_array_elements(p_lots) loop
- select * into v from public.jht_vehicles where id=(l->>'vehicle_id')::uuid;
+ select * into v from jht_private.bid_vehicles where id=(l->>'vehicle_id')::uuid;
  insert into jht_private.auction_lots(auction_id,vehicle_id,snapshot,opening_amount,increment,closes_at)
  values(new_id,v.id,jsonb_build_object('brand',v.payload->>'brand','model',v.payload->>'model','year',v.payload->'year','body',v.payload->>'body','fuel',v.payload->>'fuel','transmission',v.payload->>'transmission','mileage',v.payload->'mileage','image',v.payload->>'image','gallery',v.payload->'gallery','ref',v.payload->>'ref'),(l->>'opening_amount')::bigint,(l->>'increment')::bigint,p_end);
  end loop;
@@ -143,11 +164,11 @@ language plpgsql security definer set search_path='' as $$declare a jht_private.
  if not found then return jsonb_build_object('error','missing');end if;
  select * into a from jht_private.auctions where id=l.auction_id;
  if a.status<>'scheduled' or l.closes_at>clock_timestamp() or l.highest_bidder is null or l.confirmed_at is not null then return jsonb_build_object('error','locked');end if;
- perform id from public.jht_vehicles where id=l.vehicle_id and status='available' for update;
+ perform id from jht_private.bid_vehicles where id=l.vehicle_id and status='available' for update;
  if not found then return jsonb_build_object('error','locked');end if;
  update jht_private.auction_lots set confirmed_at=clock_timestamp(),confirmed_by=p_actor where id=p_id;
  -- Inventory is reserved, not sold; payment and export are handled by the team.
- update public.jht_vehicles set status='reserved',version=version+1 where id=l.vehicle_id and status='available';
+ update jht_private.bid_vehicles set status='reserved',version=version+1 where id=l.vehicle_id and status='available';
  else return jsonb_build_object('error','invalid');end if;
  insert into jht_private.audit(actor,action,record_id) values(p_actor,'auction.'||p_action,p_id::text);
  return jsonb_build_object('saved',true);end $$;
@@ -167,7 +188,7 @@ declare a jht_private.auctions;l jht_private.auction_lots;old jht_private.bids;t
  return jsonb_build_object('accepted',true,'bid_id',old.id,'amount',old.amount,'replayed',true);end if;
  t:=clock_timestamp();
  if a.status<>'scheduled' or t<a.starts_at or t>=l.closes_at then return jsonb_build_object('error','closed');end if;
- if not exists(select 1 from public.jht_vehicles where id=l.vehicle_id and status='available') then return jsonb_build_object('error','closed');end if;
+ if not exists(select 1 from jht_private.bid_vehicles where id=l.vehicle_id and status='available') then return jsonb_build_object('error','closed');end if;
  if l.highest_bidder=p_bidder then return jsonb_build_object('error','leading');end if;
  next_amount:=coalesce(l.highest_amount+l.increment,l.opening_amount);
  if p_amount<next_amount or p_amount>10000000 or p_amount<>trunc(p_amount) then return jsonb_build_object('error','low','minimum',next_amount);end if;
@@ -212,7 +233,7 @@ create function jht_private.guard_auction_vehicle() returns trigger language plp
  raise exception 'Cancel the active bidding session before changing this car status' using errcode='23514';end if;
  return new;end $$;
 revoke all on function jht_private.guard_auction_vehicle() from public,anon,authenticated;
-create trigger jht_vehicle_auction_status before update of status on public.jht_vehicles for each row execute function jht_private.guard_auction_vehicle();
+create trigger jht_vehicle_auction_status before update of status on jht_private.bid_vehicles for each row execute function jht_private.guard_auction_vehicle();
 do $$declare f record;begin
  for f in select p.oid::regprocedure signature from pg_proc p join pg_namespace n on p.pronamespace=n.oid where n.nspname='public' and (p.proname like 'jht_bid%' or p.proname like 'jht_auction%' or p.proname='jht_place_bid') loop
  execute format('revoke all on function %s from public,anon,authenticated',f.signature);execute format('grant execute on function %s to service_role',f.signature);end loop;

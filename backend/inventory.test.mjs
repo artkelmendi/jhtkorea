@@ -1,3 +1,4 @@
+import {Query} from './test-db.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -10,32 +11,6 @@ import { sanitizeImage } from './images.mjs';
 const owner='11111111-1111-4111-8111-111111111111';
 const env={APP_ORIGIN:'https://jht.example',SUPABASE_URL:'https://example.supabase.co',SUPABASE_ANON_KEY:'anon',SUPABASE_SERVICE_ROLE_KEY:'server',SESSION_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
 const base={slug:'integration-car',brand:'Hyundai',model:'Tucson',ref:'TEST-001',body:'SUV',fuel:'Diesel',transmission:'Automatic',year:2022,price:9000,mileage:null,seats:5,status:'available',image:'assets/car-1.webp',gallery:['assets/car-1.webp','assets/car-1-1.webp']};
-class Query {
-  constructor(db,table){this.db=db;this.table=table;this.mode='select';this.conditions=[];this.params=[];this.columns='*';}
-  select(columns='*'){this.columns=columns;return this;}
-  insert(body){this.mode='insert';this.body=body;return this;}
-  update(body){this.mode='update';this.body=body;return this;}
-  delete(){this.mode='delete';return this;}
-  eq(key,value){this.params.push(value);this.conditions.push(`"${key}"=$${this.params.length}`);return this;}
-  in(key,values){this.params.push(values);this.conditions.push(`"${key}"=any($${this.params.length})`);return this;}
-  order(key,{ascending}){this.orderBy=` order by "${key}" ${ascending?'asc':'desc'}`;return this;}
-  limit(n){this.count=n;return this;}
-  single(){this.one=true;return this;}
-  maybeSingle(){this.one=true;return this;}
-  async then(resolve,reject){
-    try{
-      let sql,params=[...this.params],where=this.conditions.length?' where '+this.conditions.join(' and '):'';
-      if(this.mode==='select')sql=`select ${this.columns} from public.${this.table}${where}${this.orderBy||''}${this.count?' limit '+this.count:''}`;
-      else if(this.mode==='delete')sql=`delete from public.${this.table}${where} returning ${this.columns}`;
-      else {
-        const fields=Object.keys(this.body),tokens=fields.map(key=>{params.push(this.body[key]);return '$'+params.length;});
-        if(this.mode==='insert')sql=`insert into public.${this.table}(${fields.join(',')}) values(${tokens.join(',')}) returning ${this.columns}`;
-        else sql=`update public.${this.table} set ${fields.map((key,i)=>`"${key}"=${tokens[i]}`).join(',')}${where} returning ${this.columns}`;
-      }
-      try{const {rows}=await this.db.query(sql,params);resolve({data:this.one?rows[0]||null:rows,error:null});}catch(error){resolve({data:null,error});}
-    }catch(error){reject(error);}
-  }
-}
 test('live inventory CRUD, homepage, notices, uploads, hidden URLs and browser grants work against PostgreSQL',async()=>{
   const db=new PGlite(),files=new Map();
   try{

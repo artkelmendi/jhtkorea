@@ -1,3 +1,5 @@
+import sharp from 'sharp';
+import {Query} from './test-db.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -14,7 +16,7 @@ async function fixture(){
  await db.query('insert into jht_private.admin_slots values(1,$1,true,false)',[owner]);
  const rpc=async(name,args)=>{const values=Object.values(args).map(v=>v&&typeof v==='object'&&!Array.isArray(v)?JSON.stringify(v):v);if(name==='jht_auction_save')values[8]=JSON.stringify(args.p_lots);const {rows}=await db.query(`select public.${name}(${values.map((_,i)=>'$'+(i+1)).join(',')}) result`,values);return rows[0].result;};
  const bidders=[];for(const [i,u] of [user1,user2,stranger].entries()){const {rows}=await db.query('insert into jht_private.bidders(user_id,email,name,created_by,activation_pending) values($1,$2,$3,$4,false) returning id',[u,`member${i}@example.com`,'Member '+i,owner]);bidders.push(rows[0].id);}
- const cars=[];for(let i=0;i<2;i++){const payload={brand:'Hyundai',model:'Tucson '+i,year:2022,image:'assets/car-1.webp',gallery:['assets/car-1.webp'],internalNote:'SECRET_NOTE',location:'SECRET_LOCATION'};const {rows}=await db.query('insert into public.jht_vehicles(slug,status,payload) values($1,$2,$3) returning id',['car-'+i,'available',JSON.stringify(payload)]);cars.push(rows[0].id);}
+ const cars=[];for(let i=0;i<2;i++){const payload={brand:'Hyundai',model:'Tucson '+i,year:2022,image:'assets/car-1.webp',gallery:['assets/car-1.webp'],internalNote:'SECRET_NOTE',location:'SECRET_LOCATION'};const {rows}=await db.query('insert into jht_private.bid_vehicles(slug,status,payload) values($1,$2,$3) returning id',['car-'+i,'available',JSON.stringify(payload)]);cars.push(rows[0].id);}
  async function save(status='scheduled',slug='collection',id=null,version=1){return rpc('jht_auction_save',{p_actor:owner,p_id:id,p_version:version,p_title:'Private collection',p_slug:slug,p_start:new Date(Date.now()+3600000).toISOString(),p_end:new Date(Date.now()+7200000).toISOString(),p_status:status,p_lots:cars.map(vehicle_id=>({vehicle_id,opening_amount:1000,increment:100})),p_members:bidders.slice(0,2)});}
  return {db,rpc,bidders,cars,save};
 }
@@ -38,16 +40,16 @@ test('SQL enforces invitation access, multi-car schedules, bid ordering, idempot
  // Concurrent equal-price requests leave one accepted highest bid, never two.
  const results=await Promise.all([bid(bidders[0],1200),bid(bidders[1],1200)]);assert.equal(results.filter(r=>r.accepted).length,1);assert.equal(results.filter(r=>r.error).length,1);
  assert.equal((await save('scheduled','collection',created.id)).error,'locked');
- await assert.rejects(()=>db.query("update public.jht_vehicles set status='sold' where id=$1",[cars[0]]));
- await assert.rejects(()=>db.query('delete from public.jht_vehicles where id=$1',[cars[0]]));
+ await assert.rejects(()=>db.query("update jht_private.bid_vehicles set status='sold' where id=$1",[cars[0]]));
+ await assert.rejects(()=>db.query('delete from jht_private.bid_vehicles where id=$1',[cars[0]]));
  assert.equal((await rpc('jht_auction_control',{p_actor:owner,p_id:lot,p_action:'confirm',p_version:1})).error,'locked');
  await db.query("update jht_private.auction_lots set closes_at=now()-interval '1 second' where id=$1",[lot]);
  assert.equal((await bid(bidders[1],1300)).error,'closed');
  assert.equal((await rpc('jht_auction_control',{p_actor:owner,p_id:lot,p_action:'confirm',p_version:1})).saved,true);
- const v=await db.query('select status from public.jht_vehicles where id=(select vehicle_id from jht_private.auction_lots where id=$1)',[lot]);assert.equal(v.rows[0].status,'reserved');
+ const v=await db.query('select status from jht_private.bid_vehicles where id=(select vehicle_id from jht_private.auction_lots where id=$1)',[lot]);assert.equal(v.rows[0].status,'reserved');
  assert.equal((await rpc('jht_auction_control',{p_actor:owner,p_id:lot,p_action:'confirm',p_version:1})).error,'locked');
  assert.equal((await rpc('jht_auction_control',{p_actor:owner,p_id:created.id,p_action:'cancel',p_version:1})).saved,true);assert.equal((await db.query('select count(*)::int n from jht_private.bids')).rows[0].n,3);
- for(const role of ['anon','authenticated']){await db.exec('set role '+role);for(const table of ['bidders','bid_sessions','auctions','auction_members','auction_lots','bids'])await assert.rejects(()=>db.query('select * from jht_private.'+table));await assert.rejects(()=>rpc('jht_auction_list',{p_actor:bidders[0],p_admin:false}));await db.exec('reset role');}
+ for(const role of ['anon','authenticated']){await db.exec('set role '+role);for(const table of ['bid_vehicles','bidders','bid_sessions','auctions','auction_members','auction_lots','bids'])await assert.rejects(()=>db.query('select * from jht_private.'+table));await assert.rejects(()=>rpc('jht_auction_list',{p_actor:bidders[0],p_admin:false}));await db.exec('reset role');}
  }finally{await db.close();}
 });
 test('HTTP bidder/admin sessions are isolated; CSRF, forged requests, revocation and anonymous access are denied',async()=>{
@@ -55,9 +57,25 @@ test('HTTP bidder/admin sessions are isolated; CSRF, forged requests, revocation
  const created=await save();await db.query("update jht_private.auctions set starts_at=now()-interval '1 minute' where id=$1",[created.id]);
  const token=u=>'header.'+Buffer.from(JSON.stringify({sub:u,aal:u===owner?'aal2':'aal1',exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')+'.signature';
  const adminId=newSessionId(),bidId=newSessionId();await rpc('jht_session_put',{p_hash:digest(adminId),p_user:owner,p_tokens:seal({access:token(owner),refresh:'admin'},Buffer.from(env.SESSION_ENCRYPTION_KEY,'base64')),p_expires:new Date(Date.now()+3600000).toISOString()});await rpc('jht_bid_session_put',{p_hash:digest(bidId),p_bidder:bidders[0],p_tokens:seal({kind:'bidder',access:token(user1),refresh:'bid'},Buffer.from(env.SESSION_ENCRYPTION_KEY,'base64')),p_expires:new Date(Date.now()+3600000).toISOString()});
- const createClient=(_url,key)=>key==='server'?{rpc:async(name,args)=>{try{return {data:await rpc(name,args),error:null};}catch(error){return {data:null,error};}}}:{auth:{setSession:async()=>({error:null}),getUser:async t=>({data:{user:{id:JSON.parse(Buffer.from(t.split('.')[1],'base64url')).sub,email_confirmed_at:'yes'}},error:null})}};
- const call=(path,body,cookie='',origin=env.APP_ORIGIN)=>handle(new Request(env.APP_ORIGIN+path,{method:body?'POST':'GET',headers:{cookie,...(body?{Origin:origin,'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined}),{ip:'test-ip'},{env,createClient});
+ const files=new Map();
+ const createClient=(_url,key)=>key==='server'?{from:t=>new Query(db,t),storage:{from:()=>({upload:async(id,bytes)=>{files.set(id,bytes);return {error:null};},download:async id=>({data:files.has(id)?new Blob([files.get(id)]):null,error:null})})},rpc:async(name,args)=>{try{return {data:await rpc(name,args),error:null};}catch(error){return {data:null,error};}}}:{auth:{setSession:async()=>({error:null}),getUser:async t=>({data:{user:{id:JSON.parse(Buffer.from(t.split('.')[1],'base64url')).sub,email_confirmed_at:'yes'}},error:null})}};
+ const call=(path,body,cookie='',origin=env.APP_ORIGIN,method=body?'POST':'GET')=>handle(new Request(env.APP_ORIGIN+path,{method,headers:{cookie,...(body?{Origin:origin,'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined}),{ip:'test-ip'},{env,createClient});
  assert.equal((await call('/api/bidder/sessions')).status,401);assert.equal((await call('/api/bidder/sessions',null,'__Host-jht_session='+adminId)).status,401);assert.equal((await call('/api/admin/auctions',null,'__Host-jht_bid_session='+bidId)).status,401);
+ const carInput={slug:'private-only',brand:'BMW',model:'530d',ref:'BID-001',body:'Sedan',fuel:'Diesel',transmission:'Automatic',year:2024,price:15000,mileage:1200,seats:5,status:'available',image:'assets/car-1.webp',gallery:['assets/car-1.webp']};
+ assert.equal((await call('/api/admin/bid-vehicles',carInput,'__Host-jht_bid_session='+bidId)).status,401);
+ const added=await call('/api/admin/bid-vehicles',carInput,'__Host-jht_session='+adminId);assert.equal(added.status,200);const bidCar=(await added.json()).vehicle;
+ assert.equal((await db.query('select count(*)::int n from public.jht_vehicles')).rows[0].n,0);
+ assert.equal((await call('/api/admin/bid-vehicles',{...carInput,internalNote:'secret'},'__Host-jht_session='+adminId)).status,400);
+ const edited=await call('/api/admin/bid-vehicles/'+bidCar.id,{...carInput,price:16000,version:bidCar.version},'__Host-jht_session='+adminId,env.APP_ORIGIN,'PUT');assert.equal(edited.status,200);assert.equal((await edited.json()).vehicle.version,2);
+ assert.equal((await call('/api/admin/bid-vehicles/'+bidCar.id,{...carInput,version:1},'__Host-jht_session='+adminId,env.APP_ORIGIN,'PUT')).status,409);
+ const png=await sharp({create:{width:64,height:40,channels:3,background:'#65cbf5'}}).png().toBuffer();const upload=await handle(new Request(env.APP_ORIGIN+'/api/admin/uploads',{method:'POST',headers:{Cookie:'__Host-jht_session='+adminId,Origin:env.APP_ORIGIN,'Content-Type':'image/png'},body:png}),{ip:'test-ip'},{env,createClient});assert.equal(upload.status,200);const photo=(await upload.json()).path;
+ const photographed=await call('/api/admin/bid-vehicles/'+bidCar.id,{...carInput,image:photo,gallery:[photo],version:2},'__Host-jht_session='+adminId,env.APP_ORIGIN,'PUT');assert.equal(photographed.status,200);
+ assert.equal((await call('/'+photo)).status,404);assert.equal((await call('/'+photo,null,'__Host-jht_session='+adminId)).status,200);
+ const next=await rpc('jht_auction_save',{p_actor:owner,p_id:null,p_version:1,p_title:'Fresh private car',p_slug:'fresh-private-car',p_start:new Date(Date.now()+3600000).toISOString(),p_end:new Date(Date.now()+7200000).toISOString(),p_status:'scheduled',p_lots:[{vehicle_id:bidCar.id,opening_amount:15000,increment:100}],p_members:[bidders[0]]});assert.ok(next.id);
+ assert.equal((await call('/'+photo.replace('api/media/','api/bidder/media/'),null,'__Host-jht_bid_session='+bidId)).status,200);
+ assert.equal((await call('/api/admin/bid-vehicles/'+bidCar.id,{...carInput,image:photo,gallery:[photo],version:3},'__Host-jht_session='+adminId,env.APP_ORIGIN,'PUT')).status,409);
+ const retailId=randomUUID();await db.query('insert into public.jht_vehicles(id,slug,status,payload) values($1,$2,$3,$4)',[retailId,'retail-only','available',JSON.stringify(carInput)]);
+ const invalid=await rpc('jht_auction_save',{p_actor:owner,p_id:null,p_version:1,p_title:'Wrong stock',p_slug:'wrong-stock',p_start:new Date(Date.now()+3600000).toISOString(),p_end:new Date(Date.now()+7200000).toISOString(),p_status:'scheduled',p_lots:[{vehicle_id:retailId,opening_amount:1000,increment:100}],p_members:[bidders[0]]});assert.equal(invalid.error,'invalid');
  const cookie='__Host-jht_bid_session='+bidId;assert.equal((await call('/api/bidder/auth/session',null,cookie)).status,200);assert.equal((await call('/api/admin/auctions',null,'__Host-jht_session='+adminId)).status,200);
  const room=await (await call('/api/bidder/sessions/collection',null,cookie)).json(),lot=room.lots[0].id;
  assert.equal((await call(`/api/bidder/lots/${lot}/bids`,{amount:1000,request_id:randomUUID()},cookie,'https://attacker.example')).status,403);

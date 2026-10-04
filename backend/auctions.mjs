@@ -1,3 +1,4 @@
+import {validateVehicle} from './vehicle-input.mjs';
 import { HttpError, response, jsonBody, exactKeys, digest, seal, unseal, newSessionId } from './policy.mjs';
 import { BUCKET } from './images.mjs';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -5,7 +6,7 @@ const slug=/^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const claims=token=>{try{return JSON.parse(Buffer.from(token.split('.')[1],'base64url').toString());}catch{throw new HttpError(401);}};
 export const bidderCookie=(id,seconds=3600)=>`__Host-jht_bid_session=${id}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=${seconds}`;
 function cookieId(request){const values=(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).filter(s=>s.startsWith('__Host-jht_bid_session='));if(values.length!==1)return null;const id=values[0].slice(23);return /^[A-Za-z0-9_-]{43}$/.test(id)?id:null;}
-async function rpc(service,name,args){const {data,error}=await service.rpc(name,args);if(error)throw new HttpError(['22P02','23514','23505'].includes(error.code)?400:503,'The operation could not be completed.');if(data?.error){const errors={denied:[403,'You do not have access to this bidding session.'],missing:[404,'This session is unavailable.'],locked:[409,'This session has changed or started. Reload before editing.'],invalid:[400,'Check the schedule, cars and invited members.'],overlap:[409,'A car is already assigned to another upcoming or live session.'],closed:[409,'Bidding is not open for this car.'],leading:[409,'You already have the highest bid.'],low:[409,`The minimum bid is $${data.minimum}. Refresh the current price.`],replay:[409,'This bid request was already used.'],schedule_conflict:[409,'The car schedule conflicts with another session.']};const [status,message]=errors[data.error]||[503,'The operation could not be completed.'];throw new HttpError(status,message);}return data;}
+async function rpc(service,name,args){const {data,error}=await service.rpc(name,args);if(error)throw new HttpError(['22P02','23514','23505'].includes(error.code)?400:503,'The operation could not be completed.');if(data?.error){const errors={denied:[403,'You do not have access to this bidding session.'],missing:[404,'This session is unavailable.'],locked:[409,'This record changed or is locked by a bidding session. Reload it; cancel an active session before changing its car.'],invalid:[400,'Check the schedule, cars and invited members.'],overlap:[409,'A car is already assigned to another upcoming or live session.'],closed:[409,'Bidding is not open for this car.'],leading:[409,'You already have the highest bid.'],low:[409,`The minimum bid is $${data.minimum}. Refresh the current price.`],replay:[409,'This bid request was already used.'],schedule_conflict:[409,'The car schedule conflicts with another session.']};const [status,message]=errors[data.error]||[503,'The operation could not be completed.'];throw new HttpError(status,message);}return data;}
 async function throttle(service,key,limit,seconds=60){if(!await rpc(service,'jht_rate_limit',{p_key:digest(key),p_limit:limit,p_seconds:seconds}))throw new HttpError(429,'Please wait before trying again.');}
 export async function bidderIdentity(request,service,auth,settings){
  const id=cookieId(request);if(!id)throw new HttpError(401,'Please sign in to continue.');
@@ -17,7 +18,7 @@ export async function bidderIdentity(request,service,auth,settings){
  return {id,user,bidder};
 }
 export async function handleAuctions(request,{path,service,auth,settings,context,admin}){
- const isAdmin=path.startsWith('/api/admin/auctions')||path.startsWith('/api/admin/bidders');
+ const isAdmin=path.startsWith('/api/admin/auctions')||path.startsWith('/api/admin/bidders')||path.startsWith('/api/admin/bid-vehicles');
  if(!isAdmin&&!path.startsWith('/api/bidder/'))return null;
  const reply=body=>response(body);
  async function startSession(provider,bidder){
@@ -55,6 +56,14 @@ export async function handleAuctions(request,{path,service,auth,settings,context
  if(!uuid.test(media[1])||!await rpc(service,'jht_bid_media',{p_bidder:identity.bidder.id,p_media:media[1]}))throw new HttpError(404);
  const {data,error}=await service.storage.from(BUCKET).download(media[1]+'.webp');if(error||!data)throw new HttpError(404);
  return new Response(data,{headers:{'Content-Type':'image/webp','Cache-Control':'private, no-store','Netlify-CDN-Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Cross-Origin-Resource-Policy':'same-origin'}});
+ }
+ if(path==='/api/admin/bid-vehicles'&&request.method==='GET')return reply(await rpc(service,'jht_bid_vehicle_list',{p_actor:admin.user.id}));
+ const bidVehicle=path.match(/^\/api\/admin\/bid-vehicles\/([0-9a-f-]{36})$/);
+ if((path==='/api/admin/bid-vehicles'&&request.method==='POST')||(bidVehicle&&request.method==='PUT')){
+ const body=await jsonBody(request),v=validateVehicle(body);if(!Number.isSafeInteger(v.payload.price)||v.payload.price<1)throw new HttpError(400,'Use a whole USD amount for the suggested opening bid.');if(bidVehicle&&(!uuid.test(bidVehicle[1])||!Number.isInteger(body.version)||body.version<1))throw new HttpError(400);
+ const photos=[...new Set([v.payload.image,...v.payload.gallery].filter(p=>p.startsWith('api/media/')).map(p=>p.slice(10,-5)))];
+ if(photos.length){const found=await service.from('jht_media').select('id').in('id',photos);if(found.error||found.data.length!==photos.length)throw new HttpError(400,'An uploaded photo is missing. Upload it again.');}
+ return reply(await rpc(service,'jht_bid_vehicle_save',{p_actor:admin.user.id,p_id:bidVehicle?bidVehicle[1]:null,p_version:body.version||1,p_slug:v.slug,p_status:v.status,p_payload:v.payload}));
  }
  if(path==='/api/admin/bidders'&&request.method==='GET'){
  return reply(await rpc(service,'jht_bidder_list',{p_actor:admin.user.id}));
