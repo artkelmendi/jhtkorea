@@ -83,7 +83,7 @@ input,select{border:0;outline:0;background:transparent}
 
 .admin-view{padding:clamp(32px,5vw,72px) clamp(25px,4vw,66px) 0;animation:view-enter .2s var(--ease-out) both}
 .admin-view[hidden]{display:none}
-@keyframes view-enter{from{opacity:.45;clip-path:inset(0 0 10% 0)}to{opacity:1;clip-path:inset(0)}}
+@keyframes view-enter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .workspace-heading,.page-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;margin-bottom:42px}
 .workspace-heading p,.page-heading p{margin:0 0 10px;color:var(--blue-strong);font-weight:800;font-size:12px}
 .workspace-heading h1,.page-heading h1{margin:0;font:900 clamp(38px,4.4vw,70px)/.98 'JHT Display','JHT Sans',sans-serif;letter-spacing:-.035em;max-width:790px;text-wrap:balance}

@@ -44,9 +44,9 @@
   }
 
   async function api(path,body,method) {
-    const result=await fetch('/api/'+path,{method:method||(body?'POST':'GET'),credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
+    const result=await fetch('/api/'+path,{method:method||(body?'POST':'GET'),credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});
     let data;try{data=await result.json();}catch{throw Error('The server could not respond. Please try again.');}
-    if(!result.ok){if(result.status===401||result.status===403){location.replace('/admin/');}throw Error(result.status===409?'This record changed. Reload the workspace before trying again.':data.error||'Could not save. Please try again.');}
+    if(!result.ok){if(result.status===401||result.status===403){location.replace('/admin/');}throw Error(data.error||'Could not save. Please try again.');}
     return data;
   }
   function writable(vehicle){return Object.fromEntries(['slug','brand','model','ref','body','fuel','transmission','year','price','mileage','seats','status','image','gallery','version'].filter(k=>vehicle[k]!==undefined).map(k=>[k,vehicle[k]]));}
@@ -200,9 +200,10 @@
       panel.hidden = !active;
     });
     $$('.nav-item').forEach(button => button.classList.toggle('is-active', button.dataset.view === name));
-    $('#current-view-label').textContent = name.charAt(0).toUpperCase() + name.slice(1);
+    $('#current-view-label').textContent = ({auctions:'Bidding sessions',bidders:'Invited members'}[name] || name.charAt(0).toUpperCase() + name.slice(1));
+    document.dispatchEvent(new CustomEvent('jht:admin-view',{detail:name}));
     closeSidebar();
-    window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth' });
+    window.scrollTo({ top: 0, behavior:'instant' });
   }
 
   function openSidebar() {
@@ -497,7 +498,7 @@
     try{
       const session=await api('auth/session');if(!session.mfaVerified||!session.accessEnabled){location.replace('/admin/');return;}
       try{applyTheme(localStorage.getItem(THEME_KEY)||'light');}catch{applyTheme('light');}
-      wireEvents();$('#vehicle-editor').inert=true;
+      wireEvents();window.JHTAuctionsAdmin.init({api,operate,showToast,vehicles:()=>state.vehicles,reloadInventory:loadInventory});$('#vehicle-editor').inert=true;
       $('#today-label').textContent=new Intl.DateTimeFormat('en',{weekday:'long',month:'long',day:'numeric'}).format(new Date());
       await Promise.all([loadInventory(), window.JHTAdminFontsReady]);$('.admin-shell').hidden=false;$('#workspace-status p').innerHTML='<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
       const welcome = $('#welcome-overlay');

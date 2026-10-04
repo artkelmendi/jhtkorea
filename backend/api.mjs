@@ -1,3 +1,4 @@
+import { handleAuctions } from './auctions.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { asset, publicVehicle, publishedRows, validateNotice, vehiclePage, unavailablePage, noticesPage, noticePage } from './content.mjs';
 import { readImage, BUCKET } from './images.mjs';
@@ -71,6 +72,7 @@ export async function handle(request, context = {}, dependencies = {}) {
       const ids=[...new Set([vehicle.payload.image,...vehicle.payload.gallery].filter(p=>p.startsWith('api/media/')).map(p=>p.slice(10,-5)))];
       if(ids.length){const {data,error}=await service.from('jht_media').select('id').in('id',ids);if(error)throw new HttpError(503);if(data.length!==ids.length)throw new HttpError(400,'An uploaded photo is missing. Upload it again.');}
     }
+    if(path.startsWith('/api/bidder/'))return await handleAuctions(request,{path,service,auth,settings,context});
     // Read-only public projection. No administrative table or provider token is exposed.
     if(path==='/api/public/catalogue' && request.method==='GET') {
       const rows=await publishedRows(service);
@@ -182,6 +184,7 @@ export async function handle(request, context = {}, dependencies = {}) {
     // Every management route passes through this server guard, including unknown endpoints.
     const verified=await identity();
     await throttle(service,`admin:${verified.user.id}`,request.method==='GET'?300:60,60);
+    if(path.startsWith('/api/admin/auctions')||path.startsWith('/api/admin/bidders'))return await handleAuctions(request,{path,service,auth,settings,context,admin:verified});
     if(path==='/api/admin/uploads' && request.method==='POST') {
       await throttle(service,`upload:${verified.user.id}`,120,3600);
       const image=await readImage(request);
@@ -213,7 +216,7 @@ export async function handle(request, context = {}, dependencies = {}) {
       await validImages(vehicle);
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.update.attempt',p_record:match[1]});
       const {data,error}=await service.from('jht_vehicles').update({...vehicle,version:body.version+1}).eq('id',match[1]).eq('version',body.version).select().maybeSingle();
-      if(error) throw new HttpError(error.code==='23505'?409:503);if(!data) throw new HttpError(409,'The record changed. Reload before saving.');
+      if(error) throw new HttpError(['23505','23514'].includes(error.code)?409:503,error.code==='23514'?'Cancel the active bidding session before changing this car status.':undefined);if(!data) throw new HttpError(409,'The record changed. Reload before saving.');
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.update.success',p_record:data.id});
       return reply({vehicle:rowToVehicle(data)});
     }
@@ -222,7 +225,7 @@ export async function handle(request, context = {}, dependencies = {}) {
       const body=await jsonBody(request);exactKeys(body,['version']);if(!Number.isInteger(body.version)||body.version<1)throw new HttpError(400);
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.delete.attempt',p_record:match[1]});
       const {data,error}=await service.from('jht_vehicles').delete().eq('id',match[1]).eq('version',body.version).select('id').maybeSingle();
-      if(error)throw new HttpError(503);if(!data)throw new HttpError(409,'The record changed. Reload before deleting.');
+      if(error)throw new HttpError(error.code==='23503'?409:503,error.code==='23503'?'This car has bidding history. Archive it instead of deleting it.':undefined);if(!data)throw new HttpError(409,'The record changed. Reload before deleting.');
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'vehicle.delete.success',p_record:data.id});
       return reply({deleted:true});
     }

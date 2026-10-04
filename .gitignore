@@ -5,3 +5,4 @@ node_modules/
 .netlify/
 netlify-public/
 security-results.json
+netlify-public-initial-review/

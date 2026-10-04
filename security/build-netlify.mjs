@@ -28,6 +28,7 @@ await walk(output);
 // The real sign-in flow is served only by the host that runs its guarded API.
 // GitHub Pages retains the closed management page.
 await cp(join(root,'private-ui','admin'),join(output,'admin'),{recursive:true});
+await cp(join(root,'private-ui','bidding'),join(output,'bidding'),{recursive:true});for(const file of ['auction-utils.js','auction-ui.css'])await cp(join(root,'private-ui',file),join(output,file));
 // Replace public sample cards with live content only in the server-backed release.
 let home=await readFile(join(output,'index.html'),'utf8');
 if(home.includes('id="latest-carousel"')) {
@@ -55,7 +56,7 @@ await cp(join(root,'private-ui','live-content.css'),join(output,'live-content.cs
 home=await readFile(join(output,'index.html'),'utf8');await writeFile(join(output,'index.html'),home.replace('</head>','<link rel="stylesheet" href="/live-content.css"></head>'));
 const scripts=[...hashes].join(' ');
 const csp=`default-src 'none'; script-src 'self' ${scripts}; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; font-src 'self'; media-src 'self'; connect-src 'self'; frame-src https://www.google.com https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'`;
-await writeFile(join(output,'_headers'),`/*\n  Content-Security-Policy: ${csp}\n/admin/*\n  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'\n`);
+await writeFile(join(output,'_headers'),`/*\n  Content-Security-Policy: ${csp}\n/bidding/*\n  Cache-Control: private, no-store\n  X-Robots-Tag: noindex, nofollow, noarchive\n  Referrer-Policy: no-referrer\n/admin/*\n  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'\n`);
 const forbidden=['backend','supabase','.env','node_modules','package.json','netlify','security'];
 for(const name of forbidden) {try{await stat(join(output,name));throw Error(`Private build artifact exposed: ${name}`);}catch(error){if(error.code!=='ENOENT')throw error;}}
 console.log(`Built ${relative(root,output)} with live public catalogue and the MFA-protected workspace.`);

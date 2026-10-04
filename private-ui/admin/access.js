@@ -13,7 +13,7 @@
   async function api(path,body) {
     const response=await fetch('/api/auth/'+path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
     const data=await response.json();
-    if(!response.ok) throw Error(data.error||'Access could not be verified. Please try again.');
+    if(!response.ok){const error=Error(data.error||'Access could not be verified. Please try again.');error.status=response.status;throw error;}
     return data;
   }
   async function mfa() {
@@ -51,6 +51,23 @@
   $('#setup-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const password=new FormData($('#setup-form')).get('password');await api('activate',{...invitation,password});invitation=null;$('#setup-form input').value='';await mfa();});});
   $('#mfa-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const verified=await api('mfa/verify',{factorId,code:new FormData($('#mfa-form')).get('code')});$('#mfa-form input').value='';result(verified.accessEnabled);});});
   $('#sign-out').addEventListener('click',async()=>{try{await api('logout',{});location.replace('/admin/');}catch{ $('#access-message').textContent='Sign-out could not be completed. Please try again.';}});
-  if(invitation)stage($('#setup-form'),'Make it yours.','Create your private sign-in password, then set up two-factor verification.');
-  else api('session').then(state=>state.mfaVerified?result(state.accessEnabled):mfa()).catch(()=>{});
+  async function reveal() {
+    await window.JHTAdminFontsReady;
+    document.body.classList.remove('access-checking');
+    const loader=$('#access-loader');loader.classList.add('is-leaving');setTimeout(()=>loader.remove(),220);
+  }
+  async function boot() {
+    if(invitation){stage($('#setup-form'),'Set up your account.','Choose your password, then secure your account with two-factor verification.');await reveal();return;}
+    try {
+      const session=await api('session');
+      if(session.mfaVerified&&session.accessEnabled){location.replace('/admin/workspace/');return;}
+      if(session.mfaVerified){result(session.accessEnabled);await reveal();return;}
+      await mfa();await reveal();
+    } catch(error) {
+      stage($('#login-form'),'Welcome back.','Sign in to your private workspace.');
+      if(error.status!==401)$('#access-message').textContent=error.message;
+      await reveal();
+    }
+  }
+  boot();
 })();
