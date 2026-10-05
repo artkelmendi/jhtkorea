@@ -1,0 +1,62 @@
+/* Admin and bidder interfaces share the same responsive interaction language. */
+:root{--ease-out:cubic-bezier(.23,1,.32,1);--ease-drawer:cubic-bezier(.32,.72,0,1)}
+html{scrollbar-gutter:stable}h1,h2,h3{text-wrap:balance}p{text-wrap:pretty}
+button,a{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.primary-action,.secondary-action,.icon-button,.text-action,.row-actions button,.row-actions a,.nav-item,.bid-header button,.access-content button{transition:transform 140ms var(--ease-out),background-color 180ms ease,color 180ms ease,border-color 180ms ease}
+.primary-action:active,.secondary-action:active,.icon-button:active,.row-actions button:active,.bid-header button:active,.access-content button:active{transform:scale(.97)}
+.primary-action:hover,.task-list>button:hover>svg{transform:none}
+button:disabled{cursor:not-allowed}.is-saving button:disabled,button.is-pending{cursor:wait}
+svg.ui-icon{display:inline-block;width:17px;height:17px;flex:0 0 auto;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.admin-view{animation:none}.workspace-heading,.page-heading{margin-bottom:30px}.workspace-heading h1,.page-heading h1{font-size:clamp(30px,3vw,42px);line-height:1.15;letter-spacing:-.035em}
+.workspace-heading p,.page-heading p{font-size:11px;font-weight:650}.page-heading>div>span{font-size:13px;line-height:1.8;max-width:58ch}
+.admin-topbar{height:82px;backdrop-filter:none;background:var(--paper)}.sidebar-brand{height:82px}
+.admin-view{padding-top:42px}.metric-runway article{min-height:140px;padding:22px}.metric-runway strong{font-size:38px;font-variant-numeric:tabular-nums;letter-spacing:-.04em}.metric-runway span{font-size:12px;font-weight:550}.metric-runway small{font-size:11px}
+.metric-runway,.panel,.feature-preview{box-shadow:none;border-radius:5px;overflow:hidden}.panel-heading h2{font-size:18px}.panel-heading span{font-size:10px;font-weight:650}
+.primary-action,.secondary-action,.icon-button,.row-actions button,.row-actions a{border-radius:3px}.primary-action{background:var(--blue);font-size:12px}.secondary-action{font-size:12px}
+.vehicle-identity strong{font-size:13px;font-weight:650}.vehicle-identity span{font-size:11px}.vehicle-price{font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}.vehicle-price small{font-size:10px;font-weight:400}.feature-mark{font-size:10px}
+.row-actions button,.row-actions a{width:36px;height:36px}.row-actions button[data-delete-id]{color:var(--red)}
+.status-select{font-size:11px;min-height:36px;border-radius:3px}.vehicle-row{gap:13px}.task-list strong{font-size:13px}.task-list small{font-size:11px;line-height:1.6}.task-icon{border-radius:4px}
+.prototype-note{background:var(--surface);border-color:var(--line);padding-block:12px}.prototype-note p{font-size:11px;line-height:1.7;color:var(--muted)}.prototype-note strong{color:var(--text);font-weight:650}.prototype-note button{font-size:11px;flex-shrink:0}
+.welcome-overlay{gap:14px;padding:24px;transition:opacity 200ms var(--ease-out)}.welcome-overlay img{position:static;width:112px;height:58px;margin:0 0 8px}.welcome-loader{position:static;margin:0 0 4px;width:22px;height:22px}.welcome-overlay h1{font-size:clamp(25px,3vw,34px);line-height:1.2;margin:0}.welcome-overlay p{margin:0;max-width:330px;font-size:13px}.welcome-overlay span{font-size:9px}
+.welcome-overlay h1,.welcome-overlay p,.welcome-overlay span{transform:none}.welcome-overlay.is-ready .welcome-loader{visibility:hidden}
+.toast,.bid-toast{border-radius:4px;font-size:12px;box-shadow:0 12px 40px #0002}.toast{bottom:max(24px,env(safe-area-inset-bottom))}
+.editor-backdrop{background:#090a0c80}.vehicle-editor{transition:transform 300ms var(--ease-drawer),visibility 300ms;background:var(--surface)}
+.editor-header h2{font-size:26px;line-height:1.25;max-width:440px}.editor-header{min-height:90px;height:auto;padding-block:20px;gap:18px}.editor-header .icon-button{flex:none}.editor-header span{font-size:10px}.editor-section-heading p{font-size:12px;line-height:1.7}.editor-section-heading h3{font-size:16px}.field>span{font-size:11px;font-weight:650}
+.field input,.field select,.price-field>div,.auction-fields input,.bid-access input,.bid-lot-form input{border-radius:3px;transition:border-color 180ms ease,box-shadow 180ms ease}.field input,.field select{font-size:15px}
+.editor-body{overscroll-behavior:contain}.editor-footer{padding-bottom:max(16px,env(safe-area-inset-bottom))}.photo-drop{border-radius:4px}.photo-drop input{pointer-events:auto}.photo-drop strong{font-size:13px}.photo-drop small{font-size:11px}.photo-preview>div{border-radius:3px;overflow:hidden}
+.auction-dialog,.notice-editor{border-radius:6px;box-shadow:0 24px 80px #0003;scrollbar-width:thin}.auction-dialog::backdrop,.notice-editor::backdrop{background:#090a0cb3;animation:backdrop-in 180ms var(--ease-out) both}
+dialog[data-closing]::backdrop{opacity:0;transition:opacity 160ms var(--ease-out)}
+.auction-dialog-head{padding:24px;gap:20px}.auction-dialog-head h2{font-size:25px;line-height:1.25;max-width:540px}.auction-dialog-head>button{flex:none;display:grid;place-items:center}.auction-fields{padding:24px}.auction-dialog-actions{padding:16px 24px;gap:10px}.ui-confirm-copy{padding:24px;margin:0;color:var(--muted);font-size:14px;line-height:1.8}
+.confirm-dialog>div{border-radius:5px}.confirm-dialog:not([hidden])>div{animation:dialog-enter 220ms var(--ease-out) both}
+.auction-session-card{padding:25px;border-radius:5px;align-items:start}.auction-session-card h2{font-size:23px;line-height:1.25}.auction-session-actions{gap:14px}.auction-session-actions .text-action{font-size:12px}.auction-badge{border-radius:3px;font-size:10px;padding:5px 8px;letter-spacing:.04em}.auction-rulebar{gap:8px}.auction-rulebar span{background:var(--surface);border:0;border-radius:3px;font-size:11px}
+.auction-monitor{scroll-margin-top:106px}.auction-monitor-grid>article{border-radius:4px;overflow:hidden}.auction-monitor-grid>article.bid-stock-card{padding:0}.bid-stock-card>div{padding:22px}.bid-stock-card h2{font-size:22px;line-height:1.3}.bid-stock-card p{font-size:12px}.bid-stock-card strong{font-size:22px;font-variant-numeric:tabular-nums}.bid-stock-card strong small{display:block;margin:4px 0 0;color:var(--muted)}
+.bid-stock-card .auction-session-actions{display:flex;align-items:center;gap:18px}.auction-member-row strong{font-size:14px}.auction-member-row{padding:20px}.auction-avatar{border-radius:4px}.auction-member-row>.secondary-action{min-width:125px;justify-content:center}
+.bid-countdown-box{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:20px 24px;min-width:275px}.bid-countdown-box strong{font-size:34px}.bid-session-heading h1{font-size:clamp(30px,3.3vw,46px)}.bid-session-heading{align-items:start}
+.bid-lot{border-radius:5px;overflow:hidden}.bid-lot h2{font-size:25px}.bid-lot-copy{padding:28px}.bid-lot-price strong{font-size:34px}.bid-lot-price{padding-top:6px}.bid-lot-price span{font-variant-numeric:tabular-nums;font-size:13px;color:var(--text)}.bid-lot-state{font-size:13px;line-height:1.7}.bid-lot-form{gap:12px}.bid-lot details summary{font-size:13px}.bid-lot-photo[aria-busy=true]{outline:2px solid var(--blue);outline-offset:-2px}
+.bid-photo-nav button{width:40px;height:40px;display:grid;place-items:center;border-radius:50%;padding:0}.bid-photo-nav span{border-radius:3px;font-variant-numeric:tabular-nums}.bid-lot-photo{isolation:isolate}.bid-back{display:flex;align-items:center;gap:9px;min-height:36px}
+.access-content button{gap:18px;position:relative;min-height:56px}.access-content button.is-pending:after{content:'';width:18px;height:18px;flex:none;border:2px solid #ffffff40;border-top-color:var(--blue);border-radius:50%;animation:admin-pending-spin 800ms linear infinite}.access-content button.is-pending>.ui-icon{display:none}.access-content input{transition:border-color 180ms ease,box-shadow 180ms ease}.access-assurance{line-height:1.6}
+@keyframes backdrop-in{from{opacity:0}to{opacity:1}}@keyframes dialog-enter{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}@keyframes admin-pending-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:no-preference){.auction-dialog[open],.notice-editor[open]{animation:dialog-enter 220ms var(--ease-out) both}}
+@media(hover:hover) and (pointer:fine){.primary-action:hover{background:#8dddfb}.secondary-action:hover{border-color:var(--blue-strong);background:var(--blue-soft)}.icon-button:hover{background:var(--surface-2)}.row-actions button:hover{background:var(--surface-2)}.text-action:hover{color:var(--blue-strong)}}
+@media(max-width:960px){.admin-sidebar{transition:transform 280ms var(--ease-drawer)}.admin-view{padding-top:30px}.admin-topbar{padding-inline:24px}.prototype-note{padding-inline:24px}.metric-runway article{min-height:132px}}
+@media(max-width:600px){
+  html{scrollbar-gutter:auto}.admin-topbar{height:76px;padding-inline:20px}.admin-view{padding-inline:20px}.prototype-note{padding-inline:20px}.workspace-heading,.page-heading{gap:20px}.workspace-heading h1,.page-heading h1{font-size:30px}.workspace-heading p,.page-heading p{font-size:11px}.page-heading>div>span{font-size:13px}
+  .metric-runway article{padding:18px;min-height:126px}.metric-runway strong{font-size:34px}.metric-runway span{font-size:11px}.metric-runway small{font-size:10px}.panel-heading{padding:20px}.vehicle-identity strong{font-size:14px}.vehicle-identity span{font-size:11px}.vehicle-price{font-size:16px}
+  .editor-header,.editor-footer{padding-inline:20px}.editor-body{padding-inline:20px}.editor-header h2{font-size:24px}.field>input,.field>select,.price-field input{font-size:16px}.editor-section{padding-top:24px}.editor-section-heading{margin-bottom:20px}.photo-preview{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .auction-dialog{width:calc(100% - 24px);max-height:90svh}.auction-dialog-head,.auction-fields{padding:20px}.auction-dialog-actions{padding:16px 20px}.auction-car-option{gap:14px 10px}.auction-session-card{padding:22px}.auction-session-actions{gap:14px}.auction-session-actions .secondary-action{min-height:44px}.auction-car-choice img{width:64px;height:48px}
+  .bid-lot-copy{padding:22px}.bid-lot h2{font-size:23px}.bid-countdown-box{padding:20px;border-block:1px solid var(--line)}.bid-countdown-box strong{font-size:32px}.bid-lot-price strong{font-size:32px}.bid-page-intro{padding-top:28px}.bid-lot-photo>img{aspect-ratio:1.4}.bid-lot-form button{min-height:50px}
+  .toast,.bid-toast{bottom:max(20px,env(safe-area-inset-bottom));right:20px;max-width:calc(100vw - 40px)}.auction-monitor{scroll-margin-top:100px}.access-panel{gap:22px}.access-content{padding-block:20px}.access-content h2{font-size:34px}
+}
+@media(prefers-reduced-motion:reduce){
+  .auction-dialog[open],.notice-editor[open],.confirm-dialog:not([hidden])>div,dialog::backdrop{animation:none}.vehicle-editor,.admin-sidebar{transition:none}.access-content button.is-pending:after{animation:none}
+  .primary-action:active,.secondary-action:active,.icon-button:active,.row-actions button:active,.bid-header button:active,.access-content button:active{transform:none}
+}
+
+@media(max-width:960px){body.sidebar-open{overflow:hidden}.admin-sidebar{transition:transform 260ms var(--ease-drawer);box-shadow:none}.admin-sidebar .nav-item{min-height:44px}}
+
+html.keyboard-navigation .auction-dialog[open],html.keyboard-navigation .notice-editor[open],html.keyboard-navigation .confirm-dialog:not([hidden])>div,html.keyboard-navigation dialog::backdrop{animation:none}
+
+.vehicle-editor{transition:transform 300ms var(--ease-drawer),visibility 0s 300ms}.vehicle-editor.is-open{transition:transform 300ms var(--ease-drawer),visibility 0s}
+@media(prefers-reduced-motion:reduce){.vehicle-editor,.vehicle-editor.is-open{transition:none}}
+
+html.keyboard-navigation .vehicle-editor,html.keyboard-navigation .vehicle-editor.is-open,html.keyboard-navigation .admin-sidebar{transition:none}

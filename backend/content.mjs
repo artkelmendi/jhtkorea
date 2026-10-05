@@ -19,8 +19,9 @@ export async function publishedRows(service) {
   const {data,error}=await service.from('jht_vehicles').select('id,slug,status,payload,created_at').in('status',['available','reserved']).order('created_at',{ascending:false}).limit(500);
   if(error)throw new HttpError(503,'The collection is temporarily unavailable.');return data;
 }
-async function page(main,title,status=200) {
-  const html=shell.replace('JHT_PAGE_TITLE',escape(title)).replace('JHT_PAGE_MAIN',main);
+async function page(main,title,status=200,active="cars") {
+  const template=active==='notices'?shell.replace('aria-current="page" href="/cars/"','href="/cars/"').replace('href="/notices/">Notices','aria-current="page" href="/notices/">Notices'):shell;
+  const html=template.replace('JHT_PAGE_TITLE',escape(title)).replace('JHT_PAGE_MAIN',main);
   const hashes=[...html.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>`'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`).join(' ');
   const csp=`default-src 'none'; script-src 'self' ${hashes}; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; font-src 'self'; media-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'`;
   return new Response(html,{status,headers:{...noStoreHeaders,'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':csp}});
@@ -34,8 +35,8 @@ export async function vehiclePage(row) {
   return page(main,title+' · JHT Korea');
 }
 export async function noticesPage(rows) {
-  return page(`<main class="info-page" id="main"><section class="info-hero notices-hero"><div class="wrap"><p class="section-overline">UPDATES</p><h1>Notices<br><em>from the team.</em></h1><p>Service information and shipping updates from JHT Korea.</p></div></section><section class="info-content wrap notices-layout">${rows.length?rows.map(n=>`<a class="notice-row" href="/notices/${escape(n.slug)}/"><span class="notice-date">${escape(new Date(n.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}))}</span><div><strong>${escape(n.title)}</strong><small>JHT Korea update</small></div><span>↗</span></a>`).join(''):'<p>No notices at the moment. Contact our team for current shipping information.</p>'}</section></main>`,'Notices · JHT Korea');
+  return page(`<main class="info-page" id="main"><section class="info-hero notices-hero"><div class="wrap"><p class="section-overline">UPDATES</p><h1>Notices<br><em>from the team.</em></h1><p>Service information and shipping updates from JHT Korea.</p></div></section><section class="info-content wrap notices-layout">${rows.length?rows.map(n=>`<a class="notice-row" href="/notices/${escape(n.slug)}/"><span class="notice-date">${escape(new Date(n.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}))}</span><div><strong>${escape(n.title)}</strong><small>JHT Korea update</small></div><span>↗</span></a>`).join(''):'<p>No notices at the moment. Contact our team for current shipping information.</p>'}</section></main>`,'Notices · JHT Korea',200,'notices');
 }
 export async function noticePage(n) {
-  return page(`<main class="info-page" id="main"><section class="info-hero"><div class="wrap"><p class="section-overline">JHT KOREA UPDATE</p><h1>${escape(n.title)}</h1><p>${escape(new Date(n.created_at).toLocaleDateString('en-GB'))}</p></div></section><section class="info-content wrap"><div class="notice-content">${n.content.split(/\n\s*\n/).map(p=>`<p>${escape(p).replaceAll('\n','<br>')}</p>`).join('')}</div><a class="text-link" href="/notices/">All notices ↗</a></section></main>`,n.title+' · JHT Korea');
+  return page(`<main class="info-page" id="main"><section class="info-hero"><div class="wrap"><p class="section-overline">JHT KOREA UPDATE</p><h1>${escape(n.title)}</h1><p>${escape(new Date(n.created_at).toLocaleDateString('en-GB'))}</p></div></section><section class="info-content wrap"><div class="notice-content">${n.content.split(/\n\s*\n/).map(p=>`<p>${escape(p).replaceAll('\n','<br>')}</p>`).join('')}</div><a class="text-link" href="/notices/">All notices ↗</a></section></main>`,n.title+' · JHT Korea',200,'notices');
 }

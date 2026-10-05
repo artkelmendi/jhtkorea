@@ -9,7 +9,7 @@
     history.replaceState(null,'',location.pathname);
   }
   const forms=[$('#login-form'),$('#setup-form'),$('#mfa-form')];
-  function stage(form,title,copy){forms.forEach(f=>{f.hidden=f!==form;});$('#access-result').hidden=true;$('#access-title').textContent=title;$('#access-copy').textContent=copy;$('#access-message').textContent='';}
+  function stage(form,title,copy){forms.forEach(f=>{f.hidden=f!==form;});$('#access-result').hidden=true;$('#access-title').textContent=title;$('#access-copy').textContent=copy;$('#access-message').textContent='';if(!document.body.classList.contains('access-checking'))window.JHTUI?.enter($('.access-content'));}
   async function api(path,body) {
     const response=await fetch('/api/auth/'+path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
     const data=await response.json();
@@ -44,15 +44,15 @@
     $('#result-copy').textContent='Inventory management has not been activated yet. Your password and authenticator setup are complete; you do not need to repeat them.';
   }
   async function submit(form,action) {
-    const button=form.querySelector('button');button.disabled=true;$('#access-message').textContent='';
-    try{await action();}catch(error){$('#access-message').textContent=error.message;}finally{button.disabled=false;}
+    const button=form.querySelector('button');button.disabled=true;button.classList.add('is-pending');form.setAttribute('aria-busy','true');$('#access-message').textContent='';
+    try{await action();}catch(error){$('#access-message').textContent=error.message;}finally{button.disabled=false;button.classList.remove('is-pending');form.removeAttribute('aria-busy');}
   }
   $('#login-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const data=new FormData($('#login-form'));await api('login',{email:data.get('email'),password:data.get('password')});$('#login-form input[type=password]').value='';await mfa();});});
   $('#setup-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const password=new FormData($('#setup-form')).get('password');await api('activate',{...invitation,password});invitation=null;$('#setup-form input').value='';await mfa();});});
   $('#mfa-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const verified=await api('mfa/verify',{factorId,code:new FormData($('#mfa-form')).get('code')});$('#mfa-form input').value='';result(verified.accessEnabled);});});
   $('#sign-out').addEventListener('click',async()=>{try{await api('logout',{});location.replace('/admin/');}catch{ $('#access-message').textContent='Sign-out could not be completed. Please try again.';}});
   async function reveal() {
-    await window.JHTAdminFontsReady;
+    await window.JHTAdminFontsReady;window.JHTUI?.enter($('.access-content'));
     document.body.classList.remove('access-checking');
     const loader=$('#access-loader');loader.classList.add('is-leaving');setTimeout(()=>loader.remove(),220);
   }

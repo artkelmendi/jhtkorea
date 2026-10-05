@@ -90,6 +90,7 @@
 
   const editIcon = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 20 4.2-1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.2 16zM14.5 6.5l3 3"/></svg>';
   const viewIcon = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 12s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z"/><circle cx="12" cy="12" r="2"/></svg>';
+  const deleteIcon = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></svg>';
   const archiveIcon = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M6 7v13h12V7M9 4h6l1 3M9 11h6"/></svg>';
   const starIcon = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.9z"/></svg>';
 
@@ -106,7 +107,7 @@
         <button type="button" data-edit-id="${escapeHTML(vehicle.id)}" aria-label="Edit ${escapeHTML(title)}">${editIcon}</button>
         ${publicVisible ? `<a href="/cars/${escapeHTML(vehicle.slug)}/" target="_blank" rel="noopener" aria-label="View ${escapeHTML(title)} on website">${viewIcon}</a>` : ''}
         ${vehicle.status !== 'archived' ? `<button type="button" data-archive-id="${escapeHTML(vehicle.id)}" aria-label="Archive ${escapeHTML(title)}">${archiveIcon}</button>` : ''}
-        <button type="button" data-delete-id="${escapeHTML(vehicle.id)}" aria-label="Delete ${escapeHTML(title)}">${archiveIcon}</button>
+        <button type="button" data-delete-id="${escapeHTML(vehicle.id)}" aria-label="Delete ${escapeHTML(title)}">${deleteIcon}</button>
       </div>
     </article>`;
   }
@@ -194,29 +195,41 @@
   }
 
   function switchView(name) {
+    if($('.admin-view.is-active')?.dataset.panel===name)return;
     $$('.admin-view').forEach(panel => {
       const active = panel.dataset.panel === name;
       panel.classList.toggle('is-active', active);
       panel.hidden = !active;
+      if(active)window.JHTUI?.enter(panel,{duration:220,distance:8});
     });
-    $$('.nav-item').forEach(button => button.classList.toggle('is-active', button.dataset.view === name));
+    $$('.nav-item').forEach(button => {button.classList.toggle('is-active', button.dataset.view === name);if(button.dataset.view===name)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current')});
     $('#current-view-label').textContent = ({auctions:'Bidding sessions',bidders:'Invited members',bidcars:'Bidding cars'}[name] || name.charAt(0).toUpperCase() + name.slice(1));
     $('#workspace-status p').innerHTML=['bidcars','auctions','bidders'].includes(name)?'<strong>Private bidding</strong> Bidding cars stay separate from public sale inventory. Only assigned members can enter a session.':'<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
+    history.replaceState(null,'',location.pathname+'#'+name);
     document.dispatchEvent(new CustomEvent('jht:admin-view',{detail:name}));
     closeSidebar();
     window.scrollTo({ top: 0, behavior:'instant' });
   }
 
   function openSidebar() {
+    $('#admin-sidebar').inert = false;
     $('#admin-sidebar').classList.add('is-open');
     $('#sidebar-scrim').hidden = false;
     $('#sidebar-open').setAttribute('aria-expanded', 'true');
+    $('#admin-main').inert = true;
+    document.body.classList.add('sidebar-open');
+    $('#sidebar-close').focus({preventScroll:true});
   }
 
   function closeSidebar() {
+    const wasOpen = $('#admin-sidebar').classList.contains('is-open');
     $('#admin-sidebar').classList.remove('is-open');
     $('#sidebar-scrim').hidden = true;
     $('#sidebar-open').setAttribute('aria-expanded', 'false');
+    $('#admin-sidebar').inert = innerWidth <= 960;
+    $('#admin-main').inert = false;
+    document.body.classList.remove('sidebar-open');
+    if(wasOpen) $('#sidebar-open').focus({preventScroll:true});
   }
 
   function clearFieldErrors() {
@@ -274,12 +287,13 @@
     $('#vehicle-editor').setAttribute('aria-hidden', 'false');
     $('#editor-backdrop').hidden = false;
     document.body.classList.add('editor-open');
-    setTimeout(() => $('#car-brand-choice').focus(), 120);
+    $('#vehicle-editor .editor-body').scrollTop=0;
+    $('#editor-close').focus({preventScroll:true});
   }
 
   function closeEditor(force=false) {
     if(state.busy&&!force)return;
-    $('#vehicle-editor').classList.remove('is-open');$('#vehicle-editor').inert=true;$('.admin-shell').inert=false;state.editorTrigger?.focus();
+    $('#vehicle-editor').classList.remove('is-open');$('#vehicle-editor').inert=true;$('.admin-shell').inert=false;state.editorTrigger?.focus({preventScroll:true});
     $('#vehicle-editor').setAttribute('aria-hidden', 'true');
     $('#editor-backdrop').hidden = true;
     document.body.classList.remove('editor-open');
@@ -372,6 +386,8 @@
     $('#sidebar-open').addEventListener('click', openSidebar);
     $('#sidebar-close').addEventListener('click', closeSidebar);
     $('#sidebar-scrim').addEventListener('click', closeSidebar);
+    addEventListener('resize',()=>{if(innerWidth>960)closeSidebar();},{passive:true});
+    closeSidebar();
     $('#editor-close').addEventListener('click', closeEditor);
     $('#editor-backdrop').addEventListener('click', closeEditor);
     $('#car-brand-choice').addEventListener('change',()=>{const add=$('#car-brand-choice').value==='__new__';$('#car-brand').hidden=!add;$('#car-brand').required=add;$('#car-brand').value=add?'':$('#car-brand-choice').value;modelOptions();if(add)$('#car-brand').focus();});
@@ -433,17 +449,18 @@
     $('#preview-site').addEventListener('click', () => window.open('/', '_blank', 'noopener'));
     $('#workspace-signout').addEventListener('click',()=>operate(async()=>{await api('auth/logout',{});location.replace('/admin/');}));
     $('#new-notice').addEventListener('click',()=>openNotice());
-    $('#notice-close').addEventListener('click',()=>$('#notice-editor').close());
+    $('#notice-close').addEventListener('click',()=>window.JHTUI.closeDialog($('#notice-editor')));
     $('#notice-editor').addEventListener('cancel',event=>{if(state.busy)event.preventDefault();});
     $('#notice-form').addEventListener('submit',event=>{event.preventDefault();saveNotice();});
-    $('#notice-list').addEventListener('click',event=>{
+    $('#notice-list').addEventListener('click',async event=>{
       const edit=event.target.closest('[data-edit-notice]'),remove=event.target.closest('[data-delete-notice]');
       if(edit)openNotice(state.notices.find(n=>n.id===edit.dataset.editNotice));
-      if(remove&&confirm('Delete this notice permanently?'))operate(async()=>{const notice=state.notices.find(n=>n.id===remove.dataset.deleteNotice);await api('admin/notices/'+notice.id,{version:notice.version},'DELETE');state.notices=state.notices.filter(n=>n.id!==notice.id);renderNotices();showToast('Notice deleted from the website.');});
+      if(remove&&await window.JHTUI.confirm({title:'Delete this notice?',message:'This permanently removes the notice from your website. Keep it as a draft if you may need it again.',label:'Delete notice'}))operate(async()=>{const notice=state.notices.find(n=>n.id===remove.dataset.deleteNotice);await api('admin/notices/'+notice.id,{version:notice.version},'DELETE');state.notices=state.notices.filter(n=>n.id!==notice.id);renderNotices();showToast('Notice deleted from the website.');});
     });
     $('#theme-button').addEventListener('click', toggleTheme);
     document.addEventListener('keydown', event => {
       if(state.busy){if(['Escape','Tab'].includes(event.key))event.preventDefault();return;}
+      if(event.key==='Tab'&&$('#admin-sidebar').classList.contains('is-open')){const controls=[...$('#admin-sidebar').querySelectorAll('a,button')],first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
       if(event.key==='Tab'&&!$('#confirm-dialog').hidden){const controls=[...$('#confirm-dialog').querySelectorAll('button')],first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
       if (event.key === '/' && !/input|textarea|select/i.test(document.activeElement.tagName)) {
         event.preventDefault();
@@ -484,7 +501,7 @@
   }
   async function saveNotice(){
     await operate(async()=>{const previous=state.notices.find(n=>n.id===state.noticeId),form=$('#notice-form'),body={title:form.elements.title.value,content:form.elements.content.value,status:form.elements.status.value,slug:previous?.slug||slugify(form.elements.title.value).slice(0,80)+'-'+Date.now(),...(previous?{version:previous.version}:{})};
-      const {notice}=await api('admin/notices'+(previous?'/'+previous.id:''),body,previous?'PUT':'POST');if(previous)state.notices[state.notices.indexOf(previous)]=notice;else state.notices.unshift(notice);renderNotices();$('#notice-editor').close();showToast('Notice saved. Published updates appear on the website.');});
+      const {notice}=await api('admin/notices'+(previous?'/'+previous.id:''),body,previous?'PUT':'POST');if(previous)state.notices[state.notices.indexOf(previous)]=notice;else state.notices.unshift(notice);renderNotices();window.JHTUI.closeDialog($('#notice-editor'));showToast('Notice saved. Published updates appear on the website.');});
   }
   function applyTheme(theme) {
     document.documentElement.dataset.adminTheme = theme;
@@ -502,13 +519,15 @@
       try{applyTheme(localStorage.getItem(THEME_KEY)||'light');}catch{applyTheme('light');}
       wireEvents();window.JHTAuctionsAdmin.init({api,operate,showToast,vehicles:()=>state.vehicles,reloadInventory:loadInventory,openBidCar:v=>openEditor(v,true),writable});$('#vehicle-editor').inert=true;
       $('#today-label').textContent=new Intl.DateTimeFormat('en',{weekday:'long',month:'long',day:'numeric'}).format(new Date());
-      await Promise.all([loadInventory(), window.JHTAdminFontsReady]);$('.admin-shell').hidden=false;$('#workspace-status p').innerHTML='<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
+      await Promise.all([loadInventory(), window.JHTAdminFontsReady]);$('.admin-shell').hidden=false;window.JHTUI?.enter($('.admin-view.is-active'),{duration:250,distance:8});$('#workspace-status p').innerHTML='<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
+      const requested=location.hash.slice(1);if(['overview','inventory','homepage','notices','bidcars','auctions','bidders'].includes(requested))switchView(requested);
       const welcome = $('#welcome-overlay');
+      welcome.querySelector('h1').textContent='Welcome back.';
       welcome.classList.add('is-ready');
       setTimeout(() => {
         welcome.classList.add('is-finished');
         setTimeout(() => welcome.remove(), 220);
-      }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 150 : 450);
+      }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 : 350);
       document.addEventListener('keydown',event=>{if(event.key!=='Tab'||!$('#vehicle-editor').classList.contains('is-open'))return;const controls=[...$('#vehicle-editor').querySelectorAll('button,input,select')].filter(el=>!el.disabled&&el.offsetParent!==null),first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}});
       document.addEventListener('visibilitychange',()=>{if(!document.hidden)api('auth/session').catch(()=>{});});
     }catch(error){$('#welcome-overlay').innerHTML='<h1>Workspace unavailable.</h1><p></p><a href="/admin/">Return to sign-in</a>';$('#welcome-overlay p').textContent=error.message;$('#welcome-overlay').classList.add('is-ready');}

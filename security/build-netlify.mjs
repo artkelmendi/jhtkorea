@@ -28,7 +28,7 @@ await walk(output);
 // The real sign-in flow is served only by the host that runs its guarded API.
 // GitHub Pages retains the closed management page.
 await cp(join(root,'private-ui','admin'),join(output,'admin'),{recursive:true});
-await cp(join(root,'private-ui','bidding'),join(output,'bidding'),{recursive:true});for(const file of ['auction-utils.js','auction-ui.css'])await cp(join(root,'private-ui',file),join(output,file));
+await cp(join(root,'private-ui','bidding'),join(output,'bidding'),{recursive:true});for(const file of ['auction-utils.js','auction-ui.css','interface.css'])await cp(join(root,'private-ui',file),join(output,file));
 // Replace public sample cards with live content only in the server-backed release.
 let home=await readFile(join(output,'index.html'),'utf8');
 if(home.includes('id="latest-carousel"')) {
@@ -37,7 +37,7 @@ if(home.includes('id="latest-carousel"')) {
   let depth=1,end=tagEnd;const tags=/<\/?div\b[^>]*>/g;tags.lastIndex=tagEnd;let match;
   while(depth&&(match=tags.exec(home))){depth+=match[0].startsWith('</')?-1:1;end=tags.lastIndex;}
   const opening=home.slice(start,tagEnd).replace('id="latest-carousel"','id="latest-carousel" data-live-pending="true"');
-  home=home.slice(0,start)+opening+'<p class="collection-message">Loading the collection…</p></div>'+home.slice(end);
+  home=home.slice(0,start)+opening+'<div class="collection-skeleton" role="status" aria-label="Loading the collection"><span></span><span></span><span></span><span></span></div></div>'+home.slice(end);
   home=home.replace(/(?=<section\b[^>]*\bid="about")/,'<section id="featured-vehicle-section" class="featured-section" aria-labelledby="featured-vehicle-title" hidden></section>');
   home=home.replace('</head>','<script defer src="/security-data.js"></script><script defer src="/live-home.js"></script></head>');
   home=home.replace('Showing 10 recent vehicles from our sample collection. Availability and final pricing are confirmed with the team.','Recent arrivals from our live collection. Confirm condition and final shipping costs with our team.');
