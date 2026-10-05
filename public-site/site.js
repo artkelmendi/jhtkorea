@@ -42,10 +42,18 @@ setTheme(document.documentElement.dataset.theme||'light');
 themeButton?.addEventListener('click',()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark',true));
 
 const intro=document.querySelector('.site-intro');
-function enterHero(){
+async function enterHero(){
+ await window.JHTPublicFontsReady;
+ const heading=document.querySelector('.hero-copy h1,.catalogue-hero h1,.info-hero h1,.vehicle-intro h1');
+ window.JHTUI?.headline(heading,{delay:100});
+ document.documentElement.classList.remove('public-type-loading');
  document.documentElement.classList.add('hero-ready');
- const elements=[document.querySelector('.hero-welcome'),document.querySelector('.hero-copy h1'),document.querySelector('.hero-intro'),document.querySelector('.hero-actionbar')];
- elements.forEach((element,index)=>window.JHTUI?.enter(element,{duration:700,distance:index===1?22:12,delay:index*85}));
+ const container=heading?.closest('.hero-copy,.catalogue-hero .wrap,.info-hero .wrap,.vehicle-intro');
+ if(container){
+   const companions=[...container.children].filter(element=>element!==heading&&!element.contains(heading));
+   companions.forEach((element,index)=>window.JHTUI?.enter(element,{duration:450,distance:10,fromOpacity:0,delay:index===0?0:250+index*65}));
+ }
+ window.JHTUI?.enter(document.querySelector('.hero-actionbar'),{duration:500,distance:10,fromOpacity:0,delay:480});
 }
 if(intro&&document.documentElement.classList.contains('has-intro')){setTimeout(()=>{document.documentElement.classList.remove('has-intro');try{sessionStorage.setItem('jht-intro-seen','1')}catch(e){};enterHero()},1500)}else requestAnimationFrame(enterHero);
 
@@ -57,7 +65,7 @@ if(video&&!reduce){video.addEventListener('playing',()=>video.parentElement.clas
 if(hero&&!reduce&&matchMedia('(pointer:fine)').matches){let frame=0;hero.addEventListener('pointermove',e=>{if(frame)return;frame=requestAnimationFrame(()=>{const r=hero.getBoundingClientRect();hero.style.setProperty('--mouse-x',(e.clientX-r.left)+'px');hero.style.setProperty('--mouse-y',(e.clientY-r.top)+'px');hero.classList.add('pointer-active');frame=0})});hero.addEventListener('pointerleave',()=>hero.classList.remove('pointer-active'))}
 
 // One reveal system. Every section stays readable before its entrance runs.
-const marketingSelectors='.brand-heading,.section-heading,.brand-tile,.company-story,.company-service,.config-heading,.config-workspace,.config-film,.location-copy,.map-shell,.home-contact .wrap,.catalogue-hero .wrap,.vehicle-intro,.vehicle-summary,.info-hero .wrap,.faq-group,.guide-steps article,.notice-row,.footer-lead,.footer-navigation,.featured-photo,.featured-copy';
+const marketingSelectors='.brand-heading,.section-heading,.brand-tile,.company-story,.company-service,.config-heading,.config-workspace,.config-film,.location-copy,.map-shell,.home-contact .wrap,.vehicle-summary,.faq-group,.guide-steps article,.notice-row,.footer-lead,.footer-navigation,.featured-photo,.featured-copy';
 function revealSections(root=document){
   const nodes=[...root.querySelectorAll(marketingSelectors)].filter(el=>!el.dataset.motionObserved);
   if(reduce||!('IntersectionObserver' in window))return;

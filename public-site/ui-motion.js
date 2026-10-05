@@ -6,13 +6,13 @@
   const keyboard = () => document.documentElement.classList.contains('keyboard-navigation');
   document.addEventListener('keydown', () => document.documentElement.classList.add('keyboard-navigation'), {capture:true});
   document.addEventListener('pointerdown', () => document.documentElement.classList.remove('keyboard-navigation'), {capture:true,passive:true});
-  function enter(element, { delay = 0, duration = 220, distance = 8 } = {}) {
+  function enter(element, { delay = 0, duration = 220, distance = 8, fromOpacity = .5 } = {}) {
     if (!element || reduced.matches || keyboard() || document.hidden) return;
     active.get(element)?.cancel();
     const motion = element.animate([
-      { opacity: .5, transform: `translateY(${distance}px)` },
+      { opacity: fromOpacity, transform: `translateY(${distance}px)` },
       { opacity: 1, transform: 'translateY(0)' }
-    ], { duration, delay, easing: ease });
+    ], { duration, delay, easing: ease, fill:'backwards' });
     active.set(element, motion);
     motion.finished.catch(() => {}).finally(() => {
       if (active.get(element) === motion) active.delete(element);
@@ -68,7 +68,55 @@
       actions.append(cancel, accept); dialog.append(header, copy, actions); document.body.append(dialog); dialog.showModal(); cancel.focus();
     });
   }
-  window.JHTUI = { enter, closeDialog, photo, confirm };
+  const headlines = new WeakMap();
+  const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, {granularity:'grapheme'}) : null;
+  // Reserve the complete heading from the first frame: letters reveal without reflowing the page.
+  function headline(element, { delay = 0, compact = false } = {}) {
+    if (!element) return 0;
+    headlines.get(element)?.forEach(animation => animation.cancel());
+    if (!element.querySelector('.type-glyph') && element.classList.contains('type-heading')) {
+      element.removeAttribute('aria-label'); element.classList.remove('type-heading');
+    }
+    if (reduced.matches || keyboard() || document.hidden) return 0;
+    if (!element.querySelector('.type-glyph')) {
+      const accessible = element.cloneNode(true);
+      accessible.querySelectorAll('br').forEach(br => br.replaceWith(' '));
+      element.setAttribute('aria-label', accessible.textContent.replace(/\s+/g, ' ').trim());
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+      for (const node of nodes) {
+        const fragment = document.createDocumentFragment();
+        for (const token of node.nodeValue.split(/(\s+)/)) {
+          if (!token) continue;
+          if (/^\s+$/.test(token)) { fragment.append(document.createTextNode(token)); continue; }
+          const word = document.createElement('span'); word.className = 'type-word'; word.setAttribute('aria-hidden', 'true');
+          const letters = segmenter ? [...segmenter.segment(token)].map(part => part.segment) : Array.from(token);
+          for (const letter of letters) {
+            const glyph = document.createElement('span'); glyph.className = 'type-glyph'; glyph.textContent = letter; word.append(glyph);
+          }
+          fragment.append(word);
+        }
+        node.replaceWith(fragment);
+      }
+      element.classList.add('type-heading');
+    }
+    const glyphs = [...element.querySelectorAll('.type-glyph')];
+    const duration = compact ? 160 : 380;
+    const step = Math.min(compact ? 18 : 55, (compact ? 120 : 620) / Math.max(1, glyphs.length - 1));
+    const motions = glyphs.map((glyph, index) => glyph.animate([
+      {opacity:0, transform:compact ? 'translateY(.15em)' : 'translateY(.3em) skewX(-9deg)', clipPath:'inset(0 100% 0 0)'},
+      {opacity:1, transform:'translateY(0) skewX(0)', clipPath:'inset(0 0% 0 0)'}
+    ], {duration, delay:delay + index * step, easing:ease, fill:'backwards'}));
+    headlines.set(element, motions);
+    Promise.allSettled(motions.map(motion => motion.finished)).then(() => {
+      if (headlines.get(element) === motions) { motions.forEach(motion => motion.cancel()); headlines.delete(element); }
+    });
+    return delay + duration + (glyphs.length - 1) * step;
+  }
+  reduced.addEventListener('change', () => {
+    if (reduced.matches) for (const element of document.querySelectorAll('.type-heading')) headlines.get(element)?.forEach(motion => motion.cancel());
+  });
+  window.JHTUI = { enter, headline, closeDialog, photo, confirm };
   for (const dialog of document.querySelectorAll('dialog')) {
     dialog.addEventListener('cancel', event => {
       if (document.body.classList.contains('is-saving') || dialog.querySelector('#close-bid-confirm:disabled')) return;

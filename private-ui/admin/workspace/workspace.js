@@ -200,7 +200,7 @@
       const active = panel.dataset.panel === name;
       panel.classList.toggle('is-active', active);
       panel.hidden = !active;
-      if(active)window.JHTUI?.enter(panel,{duration:220,distance:8});
+      if(active&&!$('#welcome-overlay'))revealView(panel);
     });
     $$('.nav-item').forEach(button => {button.classList.toggle('is-active', button.dataset.view === name);if(button.dataset.view===name)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current')});
     $('#current-view-label').textContent = ({auctions:'Bidding sessions',bidders:'Invited members',bidcars:'Bidding cars'}[name] || name.charAt(0).toUpperCase() + name.slice(1));
@@ -209,6 +209,12 @@
     document.dispatchEvent(new CustomEvent('jht:admin-view',{detail:name}));
     closeSidebar();
     window.scrollTo({ top: 0, behavior:'instant' });
+  }
+
+  function revealView(panel) {
+    if(!panel)return;
+    window.JHTUI?.headline(panel.querySelector('h1'),{compact:true});
+    [...panel.children].filter(element=>!element.matches('.workspace-heading,.page-heading')).forEach((element,index)=>window.JHTUI?.enter(element,{duration:220,distance:6,delay:Math.min(index*25,75)}));
   }
 
   function openSidebar() {
@@ -519,14 +525,15 @@
       try{applyTheme(localStorage.getItem(THEME_KEY)||'light');}catch{applyTheme('light');}
       wireEvents();window.JHTAuctionsAdmin.init({api,operate,showToast,vehicles:()=>state.vehicles,reloadInventory:loadInventory,openBidCar:v=>openEditor(v,true),writable});$('#vehicle-editor').inert=true;
       $('#today-label').textContent=new Intl.DateTimeFormat('en',{weekday:'long',month:'long',day:'numeric'}).format(new Date());
-      await Promise.all([loadInventory(), window.JHTAdminFontsReady]);$('.admin-shell').hidden=false;window.JHTUI?.enter($('.admin-view.is-active'),{duration:250,distance:8});$('#workspace-status p').innerHTML='<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
+      await Promise.all([loadInventory(), window.JHTAdminFontsReady]);$('.admin-shell').hidden=false;$('#workspace-status p').innerHTML='<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
       const requested=location.hash.slice(1);if(['overview','inventory','homepage','notices','bidcars','auctions','bidders'].includes(requested))switchView(requested);
       const welcome = $('#welcome-overlay');
       welcome.querySelector('h1').textContent='Welcome back.';
       welcome.classList.add('is-ready');
+      window.JHTUI?.headline(welcome.querySelector('h1'),{compact:true});
       setTimeout(() => {
         welcome.classList.add('is-finished');
-        setTimeout(() => welcome.remove(), 220);
+        setTimeout(() => {welcome.remove();revealView($('.admin-view.is-active'));}, 220);
       }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 : 350);
       document.addEventListener('keydown',event=>{if(event.key!=='Tab'||!$('#vehicle-editor').classList.contains('is-open'))return;const controls=[...$('#vehicle-editor').querySelectorAll('button,input,select')].filter(el=>!el.disabled&&el.offsetParent!==null),first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}});
       document.addEventListener('visibilitychange',()=>{if(!document.hidden)api('auth/session').catch(()=>{});});

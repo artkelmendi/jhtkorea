@@ -1,4 +1,6 @@
 /* Admin and bidder interfaces share the same responsive interaction language. */
+.type-word{display:inline-flex;flex-wrap:wrap;max-width:100%;vertical-align:baseline}.type-glyph{display:inline-block;transform-origin:50% 85%}
+.notices-panel h2,.notice-editor h2{font-family:'JHT Display','JHT Sans',sans-serif;font-weight:900}
 :root{--ease-out:cubic-bezier(.23,1,.32,1);--ease-drawer:cubic-bezier(.32,.72,0,1)}
 html{scrollbar-gutter:stable}h1,h2,h3{text-wrap:balance}p{text-wrap:pretty}
 button,a{touch-action:manipulation;-webkit-tap-highlight-color:transparent}

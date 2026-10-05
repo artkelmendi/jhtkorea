@@ -9,7 +9,7 @@
     history.replaceState(null,'',location.pathname);
   }
   const forms=[$('#login-form'),$('#setup-form'),$('#mfa-form')];
-  function stage(form,title,copy){forms.forEach(f=>{f.hidden=f!==form;});$('#access-result').hidden=true;$('#access-title').textContent=title;$('#access-copy').textContent=copy;$('#access-message').textContent='';if(!document.body.classList.contains('access-checking'))window.JHTUI?.enter($('.access-content'));}
+  function stage(form,title,copy){forms.forEach(f=>{f.hidden=f!==form;});$('#access-result').hidden=true;$('#access-title').textContent=title;$('#access-copy').textContent=copy;$('#access-message').textContent='';if(!document.body.classList.contains('access-checking')){window.JHTUI?.headline($('#access-title'),{compact:true});window.JHTUI?.enter($('.access-content'));}}
   async function api(path,body) {
     const response=await fetch('/api/auth/'+path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
     const data=await response.json();
@@ -52,7 +52,7 @@
   $('#mfa-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const verified=await api('mfa/verify',{factorId,code:new FormData($('#mfa-form')).get('code')});$('#mfa-form input').value='';result(verified.accessEnabled);});});
   $('#sign-out').addEventListener('click',async()=>{try{await api('logout',{});location.replace('/admin/');}catch{ $('#access-message').textContent='Sign-out could not be completed. Please try again.';}});
   async function reveal() {
-    await window.JHTAdminFontsReady;window.JHTUI?.enter($('.access-content'));
+    await window.JHTAdminFontsReady;window.JHTUI?.headline($('#access-title'),{compact:true});window.JHTUI?.headline($('.access-visual h1'),{delay:120});window.JHTUI?.enter($('.access-content'));
     document.body.classList.remove('access-checking');
     const loader=$('#access-loader');loader.classList.add('is-leaving');setTimeout(()=>loader.remove(),220);
   }

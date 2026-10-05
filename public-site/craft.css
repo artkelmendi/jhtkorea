@@ -109,6 +109,9 @@ button,a{touch-action:manipulation}
 @media(prefers-reduced-motion:no-preference){.collection-skeleton>span{animation:skeleton-breathe 1500ms ease-in-out infinite alternate}.collection-skeleton>span:nth-child(2){animation-delay:120ms}.collection-skeleton>span:nth-child(3){animation-delay:240ms}@keyframes skeleton-breathe{to{opacity:.65}}}
 
 /* Final responsive checks: stable header widths and a clear enquiry summary. */
+/* Typography waits for the actual font. Complete words keep their natural line breaks. */
+.public-type-loading :is(.hero-copy,.hero-actionbar,.catalogue-hero .wrap,.info-hero .wrap,.vehicle-intro){visibility:hidden}
+.type-word{display:inline-flex;flex-wrap:wrap;max-width:100%;vertical-align:baseline}.type-glyph{display:inline-block;transform-origin:50% 85%}
 .header.page-header,.header.page-header.scrolled,body:has(.cars-page) .header.page-header,body:has(.vehicle-page) .header.page-header{background:#17181a}
 body:has(.hero) .header.page-header:not(.scrolled){background:transparent}
 .hero-editorial .hero-actionbar input,:root[data-theme=dark] .hero-editorial .hero-actionbar input{background:transparent;color:#fff;border:0;box-shadow:none}
@@ -117,4 +120,5 @@ body:has(.hero) .header.page-header:not(.scrolled){background:transparent}
 @media(max-width:600px){
   .header .logo{width:78px;flex:0 0 78px}.header .logo img{width:78px;height:42px}.header-actions{gap:9px}.header .contact-link{font-size:10px;gap:5px;padding:8px 9px}.theme-toggle{padding:6px}
   #menu-toggle{width:24px;flex:0 0 24px}.vehicle-summary>h2{font-size:26px}
+  .info-hero h1,.catalogue-hero h1{font-size:clamp(28px,9vw,42px)}
 }

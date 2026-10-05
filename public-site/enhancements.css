@@ -142,7 +142,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{ou
 :root[data-theme=dark] .brand-tile>span:not(.brand-arrow){color:#252d2a}
 
 /* Final palette: graphite, white, and light blue. Brand marks retain their native colors. */
-@font-face{font-family:'Archivo Expanded JHT';font-style:normal;font-weight:900;font-display:swap;src:url('/jhtkorea/assets/archivo-expanded-black.ttf') format('truetype')}
+@font-face{font-family:'Archivo Expanded JHT';font-style:normal;font-weight:900;font-display:block;src:url('/jhtkorea/assets/archivo-expanded-black.ttf') format('truetype')}
 :root{--jht-graphite:#26312d;--jht-deep:#1a2421;--jht-ivory:#f5f2e9;--jht-blue:#65cbf5}
 .hero-editorial .hero-copy h1{font-family:'Archivo Expanded JHT','Manrope',sans-serif;font-weight:900;font-size:clamp(52px,6.7vw,100px);letter-spacing:-.055em;line-height:1.04;text-shadow:0 2px 22px #0006}
 .site-intro p{font-family:'Archivo Expanded JHT','Manrope',sans-serif;letter-spacing:.12em;font-size:12px;color:#f5f2e9}
@@ -160,7 +160,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{ou
 .vehicle-summary .summary-head span,.vehicle-summary .summary-assurance span{color:var(--red)}
 
 /* Neutral black / white identity. Light blue is reserved for crisp accents and actions. */
-@font-face{font-family:'Archivo SemiExpanded JHT';font-style:normal;font-weight:900;font-display:swap;src:url('/jhtkorea/assets/archivo-semiexpanded-black.ttf') format('truetype')}
+@font-face{font-family:'Archivo SemiExpanded JHT';font-style:normal;font-weight:900;font-display:block;src:url('/jhtkorea/assets/archivo-semiexpanded-black.ttf') format('truetype')}
 :root{--ink:#18191b;--paper:#fff;--red:#1f789f;--muted:#55585d;--line:#dedfe1;--surface:#fff;--surface-2:#f3f3f4;--soft:#e9e9eb;--night:#111214;--jht-graphite:#17181a;--jht-deep:#111214;--jht-ivory:#fff;--jht-blue:#65cbf5;scrollbar-color:#8d8e91 #fff}
 :root[data-theme=dark]{--ink:#f4f4f3;--paper:#121315;--red:#65cbf5;--muted:#bcbec2;--line:#393b3f;--surface:#1b1c1f;--surface-2:#242529;--soft:#2b2c30;--night:#0d0e10;scrollbar-color:#65666b #121315}
 ::selection{background:#65cbf5;color:#111214}
