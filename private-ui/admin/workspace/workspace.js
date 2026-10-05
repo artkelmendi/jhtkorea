@@ -46,7 +46,7 @@
   async function api(path,body,method) {
     const result=await fetch('/api/'+path,{method:method||(body?'POST':'GET'),credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});
     let data;try{data=await result.json();}catch{throw Error('The server could not respond. Please try again.');}
-    if(!result.ok){if(result.status===401||result.status===403){location.replace('/admin/');}throw Error(data.error||'Could not save. Please try again.');}
+    if(!result.ok){if(result.status===401||result.status===403){location.replace('/admin/');}const error=Error(data.error||'Could not save. Please try again.');error.status=result.status;throw error;}
     return data;
   }
   function writable(vehicle){return Object.fromEntries(['slug','brand','model','ref','body','fuel','transmission','year','price','mileage','seats','status','image','gallery','version'].filter(k=>vehicle[k]!==undefined).map(k=>[k,vehicle[k]]));}
@@ -105,6 +105,7 @@
       <span class="feature-mark${isFeatured ? ' is-featured' : ''}">${starIcon}${isFeatured ? 'Homepage feature' : 'Not featured'}</span>
       <div class="row-actions">
         <button type="button" data-edit-id="${escapeHTML(vehicle.id)}" aria-label="Edit ${escapeHTML(title)}">${editIcon}</button>
+        <button type="button" data-copy-id="${escapeHTML(vehicle.id)}" aria-label="Copy ${escapeHTML(title)} as a draft"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 8h12v12H8zM4 16V4h12"/></svg></button>
         ${publicVisible ? `<a href="/cars/${escapeHTML(vehicle.slug)}/" target="_blank" rel="noopener" aria-label="View ${escapeHTML(title)} on website">${viewIcon}</a>` : ''}
         ${vehicle.status !== 'archived' ? `<button type="button" data-archive-id="${escapeHTML(vehicle.id)}" aria-label="Archive ${escapeHTML(title)}">${archiveIcon}</button>` : ''}
         <button type="button" data-delete-id="${escapeHTML(vehicle.id)}" aria-label="Delete ${escapeHTML(title)}">${deleteIcon}</button>
@@ -194,8 +195,9 @@
     renderFeaturedSelector();
   }
 
-  function switchView(name) {
+  async function switchView(name) {
     if($('.admin-view.is-active')?.dataset.panel===name)return;
+    if(!await window.JHTOperations.beforeLeave())return;
     $$('.admin-view').forEach(panel => {
       const active = panel.dataset.panel === name;
       panel.classList.toggle('is-active', active);
@@ -203,7 +205,7 @@
       if(active&&!$('#welcome-overlay'))revealView(panel);
     });
     $$('.nav-item').forEach(button => {button.classList.toggle('is-active', button.dataset.view === name);if(button.dataset.view===name)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current')});
-    $('#current-view-label').textContent = ({auctions:'Bidding sessions',bidders:'Invited members',bidcars:'Bidding cars'}[name] || name.charAt(0).toUpperCase() + name.slice(1));
+    $('#current-view-label').textContent = ({auctions:'Bidding sessions',bidders:'Invited members',bidcars:'Bidding cars',site:'Website settings',activity:'Activity history'}[name] || name.charAt(0).toUpperCase() + name.slice(1));
     $('#workspace-status p').innerHTML=['bidcars','auctions','bidders'].includes(name)?'<strong>Private bidding</strong> Bidding cars stay separate from public sale inventory. Only assigned members can enter a session.':'<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
     history.replaceState(null,'',location.pathname+'#'+name);
     document.dispatchEvent(new CustomEvent('jht:admin-view',{detail:name}));
@@ -270,7 +272,8 @@
 
   function openEditor(vehicle = null, bidding = false) {
     if(state.busy)return;
-    state.bidMode=bidding;state.editingId = vehicle?.id || null;$('#car-status-label').textContent=bidding?'Bidding status · private':'Public status';$('#car-price-label').textContent=bidding?'Suggested opening bid · USD':'Price in USD';$('#car-price').step=bidding?'1':'0.01';$('#car-price').min=bidding?'1':'0';$('#car-status').options[0].textContent=bidding?'Ready for bidding':'Available';$('#car-ref').placeholder=bidding?'BID-2026-000':'CK-2026-000';$('#vehicle-form .editor-footer button[type=submit] span').textContent=bidding?'Save bidding car':'Publish vehicle';
+    state.draftCopy=!!vehicle?._copy;$('#draft-copy-help').hidden=!state.draftCopy;$('#car-status').disabled=state.draftCopy;
+    state.bidMode=bidding;state.editingId = vehicle?.id || null;$('#car-status-label').textContent=bidding?'Bidding status · private':'Public status';$('#car-price-label').textContent=bidding?'Suggested opening bid · USD':'Price in USD';$('#car-price').step=bidding?'1':'0.01';$('#car-price').min=bidding?'1':'0';$('#car-status').options[0].textContent=bidding?'Ready for bidding':'Available';$('#car-ref').placeholder=bidding?'BID-2026-000':'CK-2026-000';$('#vehicle-form .editor-footer button[type=submit] span').textContent=state.draftCopy?'Save draft copy':bidding?'Save bidding car':'Publish vehicle';
     state.photoUrls.forEach(url => URL.revokeObjectURL(url));
     state.photoUrls = []; state.photos=[];
     $('#vehicle-form').reset();
@@ -360,6 +363,7 @@
   }
 
   async function saveVehicle(statusOverride){
+    if(state.draftCopy)statusOverride='draft';
     const vehicle=formVehicle(statusOverride);if(!vehicle)return;
     if(!state.photos.length){showToast('Add at least one vehicle photo before saving.');return;}
     await operate(async()=>{
@@ -453,7 +457,7 @@
     $('#confirm-dialog').addEventListener('click', event => { if (event.target === $('#confirm-dialog')) closeArchiveDialog(); });
 
     $('#preview-site').addEventListener('click', () => window.open('/', '_blank', 'noopener'));
-    $('#workspace-signout').addEventListener('click',()=>operate(async()=>{await api('auth/logout',{});location.replace('/admin/');}));
+    $('#workspace-signout').addEventListener('click',async()=>{if(await window.JHTOperations.beforeLeave())operate(async()=>{await api('auth/logout',{});location.replace('/admin/');});});
     $('#new-notice').addEventListener('click',()=>openNotice());
     $('#notice-close').addEventListener('click',()=>window.JHTUI.closeDialog($('#notice-editor')));
     $('#notice-editor').addEventListener('cancel',event=>{if(state.busy)event.preventDefault();});
@@ -481,6 +485,7 @@
   }
 
   function handleVehicleAction(event) {
+    const copy=event.target.closest('[data-copy-id]');if(copy){const vehicle=state.vehicles.find(v=>v.id===copy.dataset.copyId);openEditor({...vehicle,id:null,ref:'',status:'draft',_copy:true});$('#editor-title').textContent='Create from '+vehicle.brand+' '+vehicle.model;$('#editor-mode').textContent='NEW DRAFT COPY';}
     const edit = event.target.closest('[data-edit-id]');
     const archive = event.target.closest('[data-archive-id]');
     const remove=event.target.closest('[data-delete-id]');if(remove)requestArchive(remove.dataset.deleteId,true);
@@ -523,10 +528,10 @@
     try{
       const session=await api('auth/session');if(!session.mfaVerified||!session.accessEnabled){location.replace('/admin/');return;}
       try{applyTheme(localStorage.getItem(THEME_KEY)||'light');}catch{applyTheme('light');}
-      wireEvents();window.JHTAuctionsAdmin.init({api,operate,showToast,vehicles:()=>state.vehicles,reloadInventory:loadInventory,openBidCar:v=>openEditor(v,true),writable});$('#vehicle-editor').inert=true;
+      wireEvents();window.JHTOperations.init({api,operate,showToast});window.JHTAuctionsAdmin.init({api,operate,showToast,vehicles:()=>state.vehicles,reloadInventory:loadInventory,openBidCar:v=>openEditor(v,true),writable});$('#vehicle-editor').inert=true;
       $('#today-label').textContent=new Intl.DateTimeFormat('en',{weekday:'long',month:'long',day:'numeric'}).format(new Date());
       await Promise.all([loadInventory(), window.JHTAdminFontsReady]);$('.admin-shell').hidden=false;$('#workspace-status p').innerHTML='<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
-      const requested=location.hash.slice(1);if(['overview','inventory','homepage','notices','bidcars','auctions','bidders'].includes(requested))switchView(requested);
+      const requested=location.hash.slice(1);if(['overview','inventory','homepage','notices','bidcars','auctions','bidders','site','activity'].includes(requested))await switchView(requested);
       const welcome = $('#welcome-overlay');
       welcome.querySelector('h1').textContent='Welcome back.';
       welcome.classList.add('is-ready');

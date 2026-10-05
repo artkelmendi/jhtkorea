@@ -18,6 +18,7 @@ test('production build isolates secrets, keeps Pages closed and supplies the rea
   await writeFile(join(root,'public-site/cars.json'),'STALE_INVENTORY_CANARY');
   await writeFile(join(root,'public-site/catalogue.js'),"fetch('/jhtkorea/cars.json',{cache:'no-store'});");
   await writeFile(join(root,'private-ui/live-home.js'),'LIVE_COLLECTION_LOADER');
+  await writeFile(join(root,'private-ui/live-site.js'),'LIVE_WEBSITE_SETTINGS');
   await writeFile(join(root,'private-ui/live-content.css'),'FEATURE_SECTION_STYLE');
   await writeFile(join(root,'private-ui/admin-shortcut.js'),'SESSION_GATED_SHORTCUT');
   await writeFile(join(root,'public-site/admin/index.html'),'Management access is closed.');

@@ -5,7 +5,7 @@ const owner=randomUUID(),user1=randomUUID(),user2=randomUUID(),stranger=randomUU
 const env={APP_ORIGIN:'https://jht.example',SUPABASE_URL:'https://example.supabase.co',SUPABASE_ANON_KEY:'anon',SUPABASE_SERVICE_ROLE_KEY:'server',SESSION_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
 async function fixture(){
  const db=new PGlite();await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key);create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);');
- for(const f of ['202610040001_security.sql','202610040002_inventory.sql','202610050001_auctions.sql'])await db.exec(await readFile(path.join(previewRoot,'supabase/migrations',f),'utf8'));
+ for(const f of ['202610040001_security.sql','202610040002_inventory.sql','202610050001_auctions.sql','202610050002_admin_operations.sql'])await db.exec(await readFile(path.join(previewRoot,'supabase/migrations',f),'utf8'));
  for(const u of [owner,user1,user2,stranger])await db.query('insert into auth.users values($1)',[u]);
  await db.query('insert into jht_private.admin_slots values(1,$1,true,false)',[owner]);
  const rpc=async(name,args)=>{const values=Object.values(args).map(v=>v&&typeof v==='object'&&!Array.isArray(v)?JSON.stringify(v):v);if(name==='jht_auction_save')values[8]=JSON.stringify(args.p_lots);const {rows}=await db.query(`select public.${name}(${values.map((_,i)=>'$'+(i+1)).join(',')}) result`,values);return rows[0].result;};

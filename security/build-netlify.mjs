@@ -10,6 +10,7 @@ const output=join(root,'netlify-public');
 try { const entries=await readdir(output); if(entries.length) throw Error('netlify-public is not empty. Use a fresh checkout for a production build.'); } catch(error) { if(error.code!=='ENOENT') throw error; }
 await mkdir(output,{recursive:true});await cp(source,output,{recursive:true,filter:path=>!['.git','.github','.env'].includes(path.split(/[\\/]/).at(-1))});
 await cp(join(root,'private-ui','admin-shortcut.js'),join(output,'admin-shortcut.js'));
+await cp(join(root,'private-ui','live-site.js'),join(output,'live-site.js'));
 await writeFile(join(output,'admin-shortcut.css'),'.admin-dashboard-link{display:inline-flex!important;align-items:center;gap:7px;color:#65cbf5!important}.admin-dashboard-link svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5}');
 const hashes=new Set();
 async function walk(dir) {
@@ -19,7 +20,7 @@ async function walk(dir) {
     if(/\.(?:html|js|css|json)$/.test(entry.name)) {
       let text=(await readFile(path,'utf8')).replaceAll('/jhtkorea/','/');
       if(entry.name.endsWith('.html')) for(const match of text.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)) hashes.add(`'sha256-${createHash('sha256').update(match[1]).digest('base64')}'`);
-      if(entry.name.endsWith('.html')&&!relative(output,path).startsWith('admin'))text=text.replace('</head>','<link rel="stylesheet" href="/admin-shortcut.css"><script defer src="/admin-shortcut.js"></script></head>');
+      if(entry.name.endsWith('.html')&&!relative(output,path).startsWith('admin'))text=text.replace('</head>','<link rel="stylesheet" href="/admin-shortcut.css"><script defer src="/admin-shortcut.js"></script><link rel="stylesheet" href="/live-content.css"><script defer src="/live-site.js"></script></head>');
       await writeFile(path,text);
     }
   }

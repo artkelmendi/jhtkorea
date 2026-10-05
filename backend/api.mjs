@@ -1,5 +1,6 @@
 import {validateVehicle} from './vehicle-input.mjs';
 import { handleAuctions } from './auctions.mjs';
+import { validateSite,publicSite,csvResponse } from './operations.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { asset, publicVehicle, publishedRows, validateNotice, vehiclePage, unavailablePage, noticesPage, noticePage } from './content.mjs';
 import { readImage, BUCKET } from './images.mjs';
@@ -62,6 +63,10 @@ export async function handle(request, context = {}, dependencies = {}) {
       if(ids.length){const {data,error}=await service.from('jht_media').select('id').in('id',ids);if(error)throw new HttpError(503);if(data.length!==ids.length)throw new HttpError(400,'An uploaded photo is missing. Upload it again.');}
     }
     if(path.startsWith('/api/bidder/'))return await handleAuctions(request,{path,service,auth,settings,context});
+    if(path==='/api/public/site'&&request.method==='GET'){
+      const {data,error}=await service.from('jht_site_settings').select('payload').eq('singleton',true).single();
+      if(error||!data)throw new HttpError(503,'Website information is temporarily unavailable.');return reply(publicSite(data.payload));
+    }
     // Read-only public projection. No administrative table or provider token is exposed.
     if(path==='/api/public/catalogue' && request.method==='GET') {
       const rows=await publishedRows(service);
@@ -173,6 +178,27 @@ export async function handle(request, context = {}, dependencies = {}) {
     // Every management route passes through this server guard, including unknown endpoints.
     const verified=await identity();
     await throttle(service,`admin:${verified.user.id}`,request.method==='GET'?300:60,60);
+    if(path==='/api/admin/site'&&request.method==='GET'){
+      const {data,error}=await service.from('jht_site_settings').select('payload,version,updated_at').eq('singleton',true).single();
+      if(error||!data)throw new HttpError(503);return reply({settings:data.payload,version:data.version,updatedAt:data.updated_at});
+    }
+    if(path==='/api/admin/site'&&request.method==='PUT'){
+      const input=await jsonBody(request,65536),payload=validateSite(input);
+      const saved=await rpc(service,'jht_site_save',{p_actor:verified.user.id,p_version:input.version,p_payload:payload});
+      if(!saved)throw new HttpError(409,'Another administrator changed the website settings. Reload the latest version before saving.');
+      return reply({settings:saved.payload,version:saved.version,updatedAt:saved.updated_at});
+    }
+    if(path==='/api/admin/stock.csv'&&request.method==='GET'){
+      await throttle(service,`export:${verified.user.id}`,10,3600);
+      const exported=await rpc(service,'jht_stock_export',{p_actor:verified.user.id});
+      if(exported.tooMany)throw new HttpError(413,'This export exceeds 5,000 vehicles. Ask your site maintainer for a complete database export.');
+      return csvResponse(exported.rows);
+    }
+    if(path==='/api/admin/activity'&&request.method==='GET'){
+      const params=new URL(request.url).searchParams,keys=[...params.keys()],category=params.get('category')||'all',before=params.get('before');
+      if(keys.some(key=>!['category','before'].includes(key))||new Set(keys).size!==keys.length||!['all','inventory','website','bidding'].includes(category)||before!==null&&!/^[1-9]\d{0,17}$/.test(before))throw new HttpError(400);
+      return reply(await rpc(service,'jht_activity_feed',{p_before:before,p_category:category}));
+    }
     if(path.startsWith('/api/admin/auctions')||path.startsWith('/api/admin/bidders')||path.startsWith('/api/admin/bid-vehicles'))return await handleAuctions(request,{path,service,auth,settings,context,admin:verified});
     if(path==='/api/admin/uploads' && request.method==='POST') {
       await throttle(service,`upload:${verified.user.id}`,120,3600);
@@ -233,7 +259,7 @@ export async function handle(request, context = {}, dependencies = {}) {
       }
       await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'homepage.update.attempt',p_record:'homepage'});
       const {error}=await service.from('jht_homepage').update(body).eq('singleton',true);
-      if(error) throw new HttpError(503);return reply({saved:true});
+      if(error) throw new HttpError(503);await rpc(service,'jht_audit',{p_actor:verified.user.id,p_action:'homepage.update.success',p_record:'homepage'});return reply({saved:true});
     }
     if(path==='/api/admin/notices' && request.method==='GET') {
       const {data,error}=await service.from('jht_notices').select('*').order('created_at',{ascending:false}).limit(100);if(error)throw new HttpError(503);return reply({notices:data});

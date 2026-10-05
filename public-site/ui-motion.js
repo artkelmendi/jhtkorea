@@ -50,7 +50,7 @@
     } catch { return false; }
     finally { if (photoTickets.get(element) === ticket) element.parentElement?.removeAttribute('aria-busy'); }
   }
-  function confirm({ title, message, label = 'Confirm' }) {
+  function confirm({ title, message, label = 'Confirm', cancelLabel = 'Keep it' }) {
     return new Promise(resolve => {
       const dialog = document.createElement('dialog'); dialog.className = 'auction-dialog auction-dialog-small ui-confirm';
       const header = document.createElement('div'); header.className = 'auction-dialog-head';
@@ -58,7 +58,7 @@
       dialog.setAttribute('aria-labelledby', heading.id);
       const copy = document.createElement('p'); copy.className = 'ui-confirm-copy'; copy.textContent = message;
       const actions = document.createElement('div'); actions.className = 'auction-dialog-actions';
-      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'secondary-action'; cancel.textContent = 'Keep it';
+      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'secondary-action'; cancel.textContent = cancelLabel;
       const accept = document.createElement('button'); accept.type = 'button'; accept.className = 'primary-action'; accept.textContent = label;
       let accepted = false;
       cancel.addEventListener('click', () => closeDialog(dialog));
