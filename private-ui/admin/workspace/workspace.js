@@ -81,6 +81,7 @@
       document.body.append(toast);
       if (toast.classList.contains('is-busy')) toast.classList.remove('is-visible');
       if (focused?.isConnected && focused.offsetParent !== null && !focused.closest('[inert]')) focused.focus({preventScroll:true});
+      document.dispatchEvent(new Event('jht:admin-idle'));
     }
   }
   function statusOptions(current) {
@@ -205,8 +206,8 @@
       if(active&&!$('#welcome-overlay'))revealView(panel);
     });
     $$('.nav-item').forEach(button => {button.classList.toggle('is-active', button.dataset.view === name);if(button.dataset.view===name)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current')});
-    $('#current-view-label').textContent = ({auctions:'Bidding sessions',bidders:'Invited members',bidcars:'Bidding cars',site:'Website settings',activity:'Activity history'}[name] || name.charAt(0).toUpperCase() + name.slice(1));
-    $('#workspace-status p').innerHTML=['bidcars','auctions','bidders'].includes(name)?'<strong>Private bidding</strong> Bidding cars stay separate from public sale inventory. Only assigned members can enter a session.':'<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
+    $('#current-view-label').textContent = ({auctions:'Bidding sessions',bidders:'Invited members',bidcars:'Bidding cars',live:'Live bidding',site:'Website settings',activity:'Activity history'}[name] || name.charAt(0).toUpperCase() + name.slice(1));
+    $('#workspace-status p').innerHTML=['bidcars','live','auctions','bidders'].includes(name)?'<strong>Private bidding</strong> Bidding cars stay separate from public sale inventory. Only assigned members can enter a session.':'<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
     history.replaceState(null,'',location.pathname+'#'+name);
     document.dispatchEvent(new CustomEvent('jht:admin-view',{detail:name}));
     closeSidebar();
@@ -528,10 +529,10 @@
     try{
       const session=await api('auth/session');if(!session.mfaVerified||!session.accessEnabled){location.replace('/admin/');return;}
       try{applyTheme(localStorage.getItem(THEME_KEY)||'light');}catch{applyTheme('light');}
-      wireEvents();window.JHTOperations.init({api,operate,showToast});window.JHTAuctionsAdmin.init({api,operate,showToast,vehicles:()=>state.vehicles,reloadInventory:loadInventory,openBidCar:v=>openEditor(v,true),writable});$('#vehicle-editor').inert=true;
+      wireEvents();window.JHTOperations.init({api,operate,showToast});window.JHTAuctionDesk.init({api,operate,showToast,refresh:()=>window.JHTAuctionsAdmin.refresh(),openSession:async slug=>{await switchView('auctions');await window.JHTAuctionsAdmin.monitor(slug);}});window.JHTAuctionsAdmin.init({api,operate,showToast,vehicles:()=>state.vehicles,reloadInventory:loadInventory,openBidCar:v=>openEditor(v,true),writable});$('#vehicle-editor').inert=true;
       $('#today-label').textContent=new Intl.DateTimeFormat('en',{weekday:'long',month:'long',day:'numeric'}).format(new Date());
       await Promise.all([loadInventory(), window.JHTAdminFontsReady]);$('.admin-shell').hidden=false;$('#workspace-status p').innerHTML='<strong>Live inventory</strong> Saved changes appear on the customer website. Sold, draft and archived cars stay private.';
-      const requested=location.hash.slice(1);if(['overview','inventory','homepage','notices','bidcars','auctions','bidders','site','activity'].includes(requested))await switchView(requested);
+      const requested=location.hash.slice(1);if(['overview','inventory','homepage','notices','bidcars','live','auctions','bidders','site','activity'].includes(requested))await switchView(requested);
       const welcome = $('#welcome-overlay');
       welcome.querySelector('h1').textContent='Welcome back.';
       welcome.classList.add('is-ready');

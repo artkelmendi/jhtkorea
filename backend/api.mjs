@@ -1,5 +1,6 @@
 import {validateVehicle} from './vehicle-input.mjs';
 import { handleAuctions } from './auctions.mjs';
+import {auctionStream,liveCursor,providerLiveSubscribe} from './live-auctions.mjs';
 import { validateSite,publicSite,csvResponse } from './operations.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { asset, publicVehicle, publishedRows, validateNotice, vehiclePage, unavailablePage, noticesPage, noticePage } from './content.mjs';
@@ -62,7 +63,7 @@ export async function handle(request, context = {}, dependencies = {}) {
       const ids=[...new Set([vehicle.payload.image,...vehicle.payload.gallery].filter(p=>p.startsWith('api/media/')).map(p=>p.slice(10,-5)))];
       if(ids.length){const {data,error}=await service.from('jht_media').select('id').in('id',ids);if(error)throw new HttpError(503);if(data.length!==ids.length)throw new HttpError(400,'An uploaded photo is missing. Upload it again.');}
     }
-    if(path.startsWith('/api/bidder/'))return await handleAuctions(request,{path,service,auth,settings,context});
+    if(path.startsWith('/api/bidder/'))return await handleAuctions(request,{path,service,auth,settings,context,liveSubscribe:dependencies.liveSubscribe});
     if(path==='/api/public/site'&&request.method==='GET'){
       const {data,error}=await service.from('jht_site_settings').select('payload').eq('singleton',true).single();
       if(error||!data)throw new HttpError(503,'Website information is temporarily unavailable.');return reply(publicSite(data.payload));
@@ -178,6 +179,11 @@ export async function handle(request, context = {}, dependencies = {}) {
     // Every management route passes through this server guard, including unknown endpoints.
     const verified=await identity();
     await throttle(service,`admin:${verified.user.id}`,request.method==='GET'?300:60,60);
+    if(['/api/admin/auctions-live','/api/admin/auctions-live/stream'].includes(path)&&request.method==='GET'){
+      const cursor=liveCursor(request),read=async after=>{const data=await rpc(service,'jht_auction_live',{p_actor:verified.user.id,p_after:after});if(data?.error)throw new HttpError(403);return data;};
+      if(path.endsWith('/stream')){await throttle(service,'auction-stream:'+verified.user.id,6,60);return auctionStream(request,{verify:identity,read,cursor,subscribe:dependencies.liveSubscribe||((cb)=>providerLiveSubscribe(service,cb))});}
+      return reply(await read(cursor));
+    }
     if(path==='/api/admin/site'&&request.method==='GET'){
       const {data,error}=await service.from('jht_site_settings').select('payload,version,updated_at').eq('singleton',true).single();
       if(error||!data)throw new HttpError(503);return reply({settings:data.payload,version:data.version,updatedAt:data.updated_at});

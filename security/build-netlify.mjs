@@ -29,7 +29,7 @@ await walk(output);
 // The real sign-in flow is served only by the host that runs its guarded API.
 // GitHub Pages retains the closed management page.
 await cp(join(root,'private-ui','admin'),join(output,'admin'),{recursive:true});
-await cp(join(root,'private-ui','bidding'),join(output,'bidding'),{recursive:true});for(const file of ['auction-utils.js','auction-ui.css','interface.css'])await cp(join(root,'private-ui',file),join(output,file));
+await cp(join(root,'private-ui','bidding'),join(output,'bidding'),{recursive:true});for(const file of ['auction-utils.js','auction-ui.css','interface.css','live-updates.js'])await cp(join(root,'private-ui',file),join(output,file));
 // Replace public sample cards with live content only in the server-backed release.
 let home=await readFile(join(output,'index.html'),'utf8');
 if(home.includes('id="latest-carousel"')) {

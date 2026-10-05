@@ -11,7 +11,7 @@ test('production build isolates secrets, keeps Pages closed and supplies the rea
   const root=await mkdtemp(join(tmpdir(),'jht-build-security-'));
   for(const dir of ['security','public-site/admin','public-site/.github','private-ui/admin','private-ui/bidding','backend','public-site/cars/hidden-car'])await mkdir(join(root,dir),{recursive:true});
   await writeFile(join(root,'private-ui/bidding/index.html'),'PRIVATE_BIDDING_UI');
-  for(const file of ['auction-utils.js','auction-ui.css','interface.css'])await writeFile(join(root,'private-ui',file),'BIDDING_SHARED');
+  for(const file of ['auction-utils.js','auction-ui.css','interface.css','live-updates.js'])await writeFile(join(root,'private-ui',file),'BIDDING_SHARED');
   const boot="window.theme='dark';";
   await writeFile(join(root,'public-site/index.html'),`<head><script>${boot}</script></head><a href="/jhtkorea/cars/">Cars</a><div id="latest-carousel"><article class="car-card"><div>STALE_INVENTORY_CANARY</div></article></div><section id="about">Story stays</section><footer>Footer stays</footer>`);
   await writeFile(join(root,'public-site/cars/hidden-car/index.html'),'STALE_DETAIL_CANARY');
