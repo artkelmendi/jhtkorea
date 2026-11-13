@@ -1,5 +1,5 @@
 [build]
-  command = "npm test && npm run build && node demo-admin/build.mjs"
+  command = "npm test && npm run build"
   publish = "netlify-public"
   functions = "netlify/functions"
 

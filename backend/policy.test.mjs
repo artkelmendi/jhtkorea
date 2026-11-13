@@ -7,6 +7,14 @@ test('authentication and MFA default deny', () => {
   for (const state of [{}, {...approved,user:null}, {...approved,claims:{sub:'attacker',aal:'aal2'}}, {...approved,slot:null}, {...approved,slot:{...approved.slot,enabled:false}}, {...approved,claims:{sub:'owner',aal:'aal1'}}, {...approved,slot:{...approved.slot,slot:3}}, {...approved,user:{id:'owner'}}]) assert.throws(()=>authorize(state));
   assert.equal(authorize(approved),'owner');
 });
+test('password-only access is restricted to the enabled, time-limited second slot',()=>{
+  const state={...approved,claims:{sub:'owner',aal:'aal1'},slot:{...approved.slot,slot:2,allow_enrollment:false,password_only_until:new Date(Date.now()+60000).toISOString()}};
+  assert.equal(authorize(state),'owner');
+  for(const change of [{slot:1},{enabled:false},{allow_enrollment:true},{password_only_until:null},{password_only_until:'invalid'},{password_only_until:new Date(Date.now()-1000).toISOString()}]){
+    assert.throws(()=>authorize({...state,slot:{...state.slot,...change}}));
+  }
+  assert.throws(()=>authorize({...state,claims:{...state.claims,aal:'aal2'},slot:{...state.slot,password_only_until:new Date(Date.now()-1000).toISOString()}}));
+});
 test('limited pre-MFA access still requires a confirmed, allowlisted user', () => {
   assert.equal(authorize({...approved,claims:{sub:'owner',aal:'aal1'}},false),'owner');
   assert.throws(()=>authorize({...approved,slot:null},false));

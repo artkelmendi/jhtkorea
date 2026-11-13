@@ -11,20 +11,34 @@ import { sanitizeImage } from './images.mjs';
 const owner='11111111-1111-4111-8111-111111111111';
 const env={APP_ORIGIN:'https://jht.example',SUPABASE_URL:'https://example.supabase.co',SUPABASE_ANON_KEY:'anon',SUPABASE_SERVICE_ROLE_KEY:'server',SESSION_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
 const base={slug:'integration-car',brand:'Hyundai',model:'Tucson',ref:'TEST-001',body:'SUV',fuel:'Diesel',transmission:'Automatic',year:2022,price:9000,mileage:null,seats:5,status:'available',image:'assets/car-1.webp',gallery:['assets/car-1.webp','assets/car-1-1.webp']};
-test('live inventory CRUD, homepage, notices, uploads, hidden URLs and browser grants work against PostgreSQL',async()=>{
+for(const tester of [false,true])test(tester?'temporary password-only tester publishes real inventory and notices; expiry blocks existing sessions':'live inventory CRUD, homepage, notices, uploads, hidden URLs and browser grants work against PostgreSQL',async()=>{
   const db=new PGlite(),files=new Map();
   try{
     await db.exec("create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key);create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);");
     for(const name of ['202610040001_security.sql','202610040002_inventory.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
     await db.query('insert into auth.users values($1)',[owner]);await db.query('insert into jht_private.admin_slots values(1,$1,true,false)',[owner]);
-    const id=newSessionId(),token='header.'+Buffer.from(JSON.stringify({sub:owner,aal:'aal2',exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')+'.signature';
+    if(tester){
+      await db.exec(await readFile(new URL('../supabase/migrations/202611130001_temporary_test_admin.sql',import.meta.url),'utf8'));
+      await db.query("update jht_private.admin_slots set slot=2,password_only_until=now()+interval '1 hour' where user_id=$1",[owner]);
+    }
+    const id=newSessionId(),token='header.'+Buffer.from(JSON.stringify({sub:owner,aal:tester?'aal1':'aal2',exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')+'.signature';
     await db.query('select public.jht_session_put($1,$2,$3,now()+interval \'1 hour\')',[digest(id),owner,seal({access:token,refresh:'private-refresh'},Buffer.from(env.SESSION_ENCRYPTION_KEY,'base64'))]);
     const createClient=(_url,key)=>key==='server'?{
       from:table=>new Query(db,table),async rpc(name,args){try{const values=Object.values(args),{rows}=await db.query(`select public.${name}(${values.map((_,i)=>'$'+(i+1)).join(',')}) result`,values);return {data:rows[0].result,error:null};}catch(error){return {data:null,error};}},
       storage:{from(){return {async upload(path,bytes){files.set(path,bytes);return {error:null};},async download(path){return {data:files.has(path)?new Blob([files.get(path)]):null,error:null};},async remove(paths){paths.forEach(path=>files.delete(path));return {error:null};}};}}
-    }:{auth:{async getUser(){return {data:{user:{id:owner,email_confirmed_at:'confirmed'}},error:null};},async setSession(){return {error:null};}}};
+    }:{auth:{async getUser(){return {data:{user:{id:owner,email_confirmed_at:'confirmed'}},error:null};},async setSession(){return {error:null};},async signInWithPassword(){return {data:{user:{id:owner,email_confirmed_at:'confirmed'},session:{access_token:token,refresh_token:'private-refresh'}},error:null};}}};
     async function call(path,body,method='GET',admin=true,mime='application/json'){
       return handle(new Request(env.APP_ORIGIN+path,{method,headers:{...(admin?{Cookie:'__Host-jht_session='+id}:{}),...(method==='GET'?{}:{Origin:env.APP_ORIGIN,'Content-Type':mime})},body:method==='GET'?undefined:mime==='application/json'?JSON.stringify(body):body}),{ip:'trusted-ip'},{env,createClient});
+    }
+    if(tester){
+      const weak=await call('/api/auth/login',{email:'test@example.com',password:'short-password'},'POST',false);
+      assert.equal(weak.status,401);
+      const login=await call('/api/auth/login',{email:'test@example.com',password:'temporary-test-password-only'},'POST',false);
+      assert.equal(login.status,200);
+      assert.deepEqual(await login.json(),{mfaRequired:false,workspaceAccess:true});
+      const cookie=login.headers.get('set-cookie').split(';')[0];
+      const session=await handle(new Request(env.APP_ORIGIN+'/api/auth/session',{headers:{cookie}}),{ip:'trusted-ip'},{env,createClient});
+      assert.deepEqual(await session.json(),{authenticated:true,mfaVerified:false,accessEnabled:true,workspaceAccess:true});
     }
     const created=await call('/api/admin/vehicles',base,'POST');assert.equal(created.status,200);let car=(await created.json()).vehicle;
     // Unknown writable/private fields and forged media references cannot enter the inventory.
@@ -55,6 +69,11 @@ test('live inventory CRUD, homepage, notices, uploads, hidden URLs and browser g
     assert.equal((await call('/api/admin/notices/'+notice.id,{slug:'update',title:'Update',content:'Private draft',status:'draft',version:notice.version},'PUT')).status,200);
     assert.equal((await call('/notices/update/',null,'GET',false)).status,404);
     const events=await db.query("select action from jht_private.audit where action like '%.success'");assert.ok(events.rows.length>=8);
+    if(tester){
+      await db.query("update jht_private.admin_slots set password_only_until=now()-interval '1 second' where user_id=$1",[owner]);
+      assert.equal((await call('/api/admin/vehicles')).status,403);
+      assert.equal((await call('/api/admin/vehicles',base,'POST')).status,403);
+    }
     for(const role of ['anon','authenticated']){await db.exec('set role '+role);for(const table of ['jht_vehicles','jht_homepage','jht_notices','jht_media'])await assert.rejects(()=>db.query('select * from public.'+table));await assert.rejects(()=>db.query('select public.jht_media_referenced($1,true)',[owner]));await db.exec('reset role');}
   }finally{await db.close();}
 });

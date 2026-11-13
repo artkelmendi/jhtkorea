@@ -527,7 +527,7 @@
 
   async function init(){
     try{
-      const session=await api('auth/session');if(!session.mfaVerified||!session.accessEnabled){location.replace('/admin/');return;}
+      const session=await api('auth/session');if(!session.workspaceAccess){location.replace('/admin/');return;}
       try{applyTheme(localStorage.getItem(THEME_KEY)||'light');}catch{applyTheme('light');}
       wireEvents();window.JHTOperations.init({api,operate,showToast});window.JHTAuctionDesk.init({api,operate,showToast,refresh:()=>window.JHTAuctionsAdmin.refresh(),openSession:async slug=>{await switchView('auctions');await window.JHTAuctionsAdmin.monitor(slug);}});window.JHTAuctionsAdmin.init({api,operate,showToast,vehicles:()=>state.vehicles,reloadInventory:loadInventory,openBidCar:v=>openEditor(v,true),writable});$('#vehicle-editor').inert=true;
       $('#today-label').textContent=new Intl.DateTimeFormat('en',{weekday:'long',month:'long',day:'numeric'}).format(new Date());

@@ -48,10 +48,18 @@ export async function jsonBody(request, max = 32768) {
 export function exactKeys(body, allowed) {
   if (Object.keys(body).some(key => !allowed.includes(key))) throw new HttpError(400, 'Unexpected field.');
 }
+export function passwordOnlyTestAccess(slot, now = Date.now()) {
+  return slot?.slot===2 && slot.enabled===true && slot.allow_enrollment===false &&
+    typeof slot.password_only_until==='string' && Date.parse(slot.password_only_until)>now;
+}
+
 export function authorize({ user, slot, claims }, requireMfa = true) {
   if (!user?.id || !user.email_confirmed_at || !claims || claims.sub !== user.id) throw new HttpError(401);
   if (!slot || slot.user_id !== user.id || ![1,2].includes(slot.slot)) throw new HttpError(403);
-  if (requireMfa && (!slot.enabled || claims.aal !== 'aal2')) throw new HttpError(403, 'Verified administrator access and MFA are required.');
+  if (slot.password_only_until != null && !passwordOnlyTestAccess(slot)) throw new HttpError(403);
+  if (requireMfa && (!slot.enabled || (claims.aal !== 'aal2' && !(claims.aal==='aal1' && passwordOnlyTestAccess(slot))))) {
+    throw new HttpError(403, 'Verified administrator access and MFA are required.');
+  }
   return user.id;
 }
 export function seal(value, key) {

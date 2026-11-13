@@ -1,6 +1,6 @@
 import { handle } from '../../backend/api.mjs';
 export default handle;
 export const config = {
-  path:['/admin/demo','/admin/demo/','/api/*','/cars/:slug','/cars/:slug/','/notices','/notices/','/notices/:slug','/notices/:slug/'],
+  path:['/api/*','/cars/:slug','/cars/:slug/','/notices','/notices/','/notices/:slug','/notices/:slug/'],
   rateLimit:{action:'rate_limit',aggregateBy:['ip'],windowSize:60,windowLimit:300}
 };

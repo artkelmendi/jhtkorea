@@ -1,5 +1,3 @@
-import demoPage from './templates/demo-page.mjs';
-import {isDemoUser,demoLoginCookie,verifyDemo,demoLogoutCookie} from './demo-auth.mjs';
 import {validateVehicle} from './vehicle-input.mjs';
 import { handleAuctions } from './auctions.mjs';
 import {auctionStream,liveCursor,providerLiveSubscribe} from './live-auctions.mjs';
@@ -7,7 +5,7 @@ import { validateSite,publicSite,csvResponse } from './operations.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { asset, publicVehicle, publishedRows, validateNotice, vehiclePage, unavailablePage, noticesPage, noticePage } from './content.mjs';
 import { readImage, BUCKET } from './images.mjs';
-import { configuration, HttpError, response, requireSameOrigin, jsonBody, exactKeys, authorize, digest, seal, unseal, newSessionId, sessionCookie, sessionId } from './policy.mjs';
+import { configuration, HttpError, response, requireSameOrigin, jsonBody, exactKeys, authorize, passwordOnlyTestAccess, digest, seal, unseal, newSessionId, sessionCookie, sessionId } from './policy.mjs';
 
 const options = { auth: { autoRefreshToken:false, persistSession:false, detectSessionInUrl:false } };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -64,18 +62,6 @@ export async function handle(request, context = {}, dependencies = {}) {
     async function validImages(vehicle) {
       const ids=[...new Set([vehicle.payload.image,...vehicle.payload.gallery].filter(p=>p.startsWith('api/media/')).map(p=>p.slice(10,-5)))];
       if(ids.length){const {data,error}=await service.from('jht_media').select('id').in('id',ids);if(error)throw new HttpError(503);if(data.length!==ids.length)throw new HttpError(400,'An uploaded photo is missing. Upload it again.');}
-    }
-    if(path==='/admin/demo' && request.method==='GET') {
-      if(!new URL(request.url).pathname.endsWith('/'))return Response.redirect(settings.origin+'/admin/demo/',302);
-      try{await verifyDemo(request,auth,settings.key);}
-      catch{return new Response(null,{status:302,headers:{Location:'/admin/','Cache-Control':'no-store'}});}
-      return new Response(demoPage,{headers:{
-        'Content-Type':'text/html; charset=utf-8',
-        'Cache-Control':'private, no-store',
-        'Netlify-CDN-Cache-Control':'no-store',
-        'X-Robots-Tag':'noindex, nofollow',
-        'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
-      }});
     }
     if(path.startsWith('/api/bidder/'))return await handleAuctions(request,{path,service,auth,settings,context,liveSubscribe:dependencies.liveSubscribe});
     if(path==='/api/public/site'&&request.method==='GET'){
@@ -134,13 +120,6 @@ export async function handle(request, context = {}, dependencies = {}) {
       await newSession(current.data.session,user.id,true);
       return reply({mfaRequired:true});
     }
-    if(path==='/api/auth/demo/session' && request.method==='GET') {
-      await verifyDemo(request,auth,settings.key);
-      return reply({demo:true});
-    }
-    if(path==='/api/auth/demo/logout' && request.method==='POST') {
-      return response({signedOut:true},200,{'Set-Cookie':demoLogoutCookie(request,settings.origin)});
-    }
     if(path==='/api/auth/login' && request.method==='POST') {
       if(!context.ip) throw new HttpError(503); // Do not trust user-supplied X-Forwarded-For.
       const body=await jsonBody(request); exactKeys(body,['email','password']);
@@ -149,13 +128,15 @@ export async function handle(request, context = {}, dependencies = {}) {
       await throttle(service,`login-account:${body.email.trim().toLowerCase()}`,10);
       const {data,error}=await auth.auth.signInWithPassword({email:body.email.trim(),password:body.password});
       if(error || !data.user || !data.session || !data.user.email_confirmed_at) throw new HttpError(401,'Sign-in could not be completed.');
-      if(isDemoUser(data.user)) {
-        const claims=trustedClaims(data.session.access_token);
-        if(claims.sub!==data.user.id)throw new HttpError(401);
-        return response({demo:true},200,{'Set-Cookie':demoLoginCookie(data.user,data.session,settings.key)});
-      }
       const slot=await rpc(service,'jht_admin_slot',{p_user:data.user.id});
-      try { authorize({user:data.user,slot,claims:trustedClaims(data.session.access_token)},false); } catch { throw new HttpError(401,'Sign-in could not be completed.'); }
+      const claims=trustedClaims(data.session.access_token);
+      try { authorize({user:data.user,slot,claims},false); } catch { throw new HttpError(401,'Sign-in could not be completed.'); }
+      const tester=passwordOnlyTestAccess(slot);
+      if(tester) {
+        if(body.password.length<16 || !['aal1','aal2'].includes(claims.aal)) throw new HttpError(401,'Sign-in could not be completed.');
+        await newSession(data.session,data.user.id);
+        return reply({mfaRequired:false,workspaceAccess:true});
+      }
       await newSession(data.session,data.user.id,true);
       return reply({mfaRequired:true});
     }
@@ -167,7 +148,9 @@ export async function handle(request, context = {}, dependencies = {}) {
     if(path==='/api/auth/session' && request.method==='GET') {
       // A disabled bootstrap account may see its own verification state, never inventory.
       const verified=await identity(false);
-      return reply({authenticated:true,mfaVerified:verified.claims.aal==='aal2',accessEnabled:verified.slot.enabled});
+      const mfaVerified=verified.claims.aal==='aal2';
+      const workspaceAccess=verified.slot.enabled&&(mfaVerified||verified.claims.aal==='aal1'&&passwordOnlyTestAccess(verified.slot));
+      return reply({authenticated:true,mfaVerified,accessEnabled:verified.slot.enabled,workspaceAccess});
     }
     if(path==='/api/auth/mfa' && request.method==='GET') {
       const verified=await identity(false);

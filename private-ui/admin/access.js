@@ -47,7 +47,7 @@
     const button=form.querySelector('button');button.disabled=true;button.classList.add('is-pending');form.setAttribute('aria-busy','true');$('#access-message').textContent='';
     try{await action();}catch(error){$('#access-message').textContent=error.message;}finally{button.disabled=false;button.classList.remove('is-pending');form.removeAttribute('aria-busy');}
   }
-  $('#login-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const data=new FormData($('#login-form'));const result=await api('login',{email:data.get('email'),password:data.get('password')});$('#login-form input[type=password]').value='';if(result.demo){location.replace('/admin/demo/');return;}await mfa();});});
+  $('#login-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const data=new FormData($('#login-form'));const result=await api('login',{email:data.get('email'),password:data.get('password')});$('#login-form input[type=password]').value='';if(result.workspaceAccess){location.replace('/admin/workspace/');return;}await mfa();});});
   $('#setup-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const password=new FormData($('#setup-form')).get('password');await api('activate',{...invitation,password});invitation=null;$('#setup-form input').value='';await mfa();});});
   $('#mfa-form').addEventListener('submit',event=>{event.preventDefault();submit(event.currentTarget,async()=>{const verified=await api('mfa/verify',{factorId,code:new FormData($('#mfa-form')).get('code')});$('#mfa-form input').value='';result(verified.accessEnabled);});});
   $('#sign-out').addEventListener('click',async()=>{try{await api('logout',{});location.replace('/admin/');}catch{ $('#access-message').textContent='Sign-out could not be completed. Please try again.';}});
@@ -60,13 +60,10 @@
     if(invitation){stage($('#setup-form'),'Set up your account.','Choose your password, then secure your account with two-factor verification.');await reveal();return;}
     try {
       const session=await api('session');
-      if(session.mfaVerified&&session.accessEnabled){location.replace('/admin/workspace/');return;}
+      if(session.workspaceAccess){location.replace('/admin/workspace/');return;}
       if(session.mfaVerified){result(session.accessEnabled);await reveal();return;}
       await mfa();await reveal();
     } catch(error) {
-      if(error.status===401) {
-        try{if((await api('demo/session')).demo){location.replace('/admin/demo/');return;}}catch{}
-      }
       stage($('#login-form'),'Welcome back.','Sign in to your private workspace.');
       if(error.status!==401)$('#access-message').textContent=error.message;
       await reveal();
